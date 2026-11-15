@@ -46,10 +46,10 @@
 
 ## 安装
 
-当前版本为 `0.30.1`，适配 **DeepSeek Harness `0.2.2-rc.1`**。在 DSH「插件」中添加下面的 Git 地址。 [发行说明与安装包](https://github.com/hmhm2333/dsh-braingames/releases/tag/v0.30.1)
+当前插件版本为 `0.30.2`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。Windows 桌面端和 Web 已在 DSH `0.2.2-rc.3` 上验收。在 DSH「插件」中添加下面的 Git 地址。 [发行说明与安装包](https://github.com/hmhm2333/dsh-braingames/releases/tag/v0.30.2)
 
 ```text
-git+https://github.com/hmhm2333/dsh-braingames.git#v0.30.1
+git+https://github.com/hmhm2333/dsh-braingames.git#v0.30.2
 ```
 
 安装后进入会话，点击**任务标题栏中文件按钮左侧的游戏图标**即可开局。空闲时也能手动打开。
