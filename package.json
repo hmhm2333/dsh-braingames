@@ -1,7 +1,6 @@
 {
   "name": "dsh-braingames",
-  "version": "0.30.2",
-  "private": true,
+  "version": "1.0.0",
   "license": "MIT",
   "homepage": "https://github.com/hmhm2333/dsh-braingames",
   "description": "等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。",
