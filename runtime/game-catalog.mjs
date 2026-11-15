@@ -4,28 +4,31 @@ export const SHARED_COPY={
   "headerStart": "来一局",
   "headerContinue": "继续本局",
   "headerPlaying": "游戏中",
-  "invite": "任务在跑，顺手来一局？",
-  "inviteIdle": "歇一小会儿，来一局？",
+  "invite": "有任务在跑，来一局试试？",
+  "inviteIdle": "休息一下，来一局试试？",
+  "inviteLabel": "训练邀请",
   "inviteAccept": "来一局",
-  "inviteDismiss": "先不玩",
-  "selecting": "正在挑游戏",
-  "chooseError": "没挑出来，再试下",
-  "chooseRetry": "再挑一次",
-  "chooseRandom": "随机开局",
+  "inviteDismiss": "先不玩了",
+  "selecting": "正在挑选游戏",
   "retry": "重试",
   "discardSavedRound": "放弃本局，重新开始",
-  "next": "换个玩",
+  "next": "换个玩玩",
   "reload": "重新加载",
-  "freezeHint": "忙完点鲸鱼娘继续",
+  "freezeHint": "点鲸鱼娘继续",
+  "moveHint": "长按鲸鱼娘并拖动",
+  "replay": "再玩一局",
+  "roundLabel": "本局成绩",
+  "mouseLeft": "鼠标左键",
+  "mouseRight": "鼠标右键",
+  "chancesLeft": "还剩 {lives} 次机会。",
   "bestLabel": "最高记录",
-  "badRecord": "本款存在损坏的本机记录，暂用默认值。可清理该损坏记录。",
+  "badRecord": "存在损坏的本机记录，暂用默认值。",
   "storageUnavailable": "本机存储不可用，仍可继续游玩。未保存的最高分或位置无法保留。",
   "clearRecord": "清理损坏记录",
-  "loadedError": "游戏资源加载失败，请重试。",
+  "loadedError": "游戏加载失败",
   "bootError": "游戏初始化失败，请重试。",
   "loading": "游戏准备中…",
   "noGames": "请前往插件设置，至少勾选一款游戏。",
-  "selectGame": "选择游戏",
   "viewportError": "本款游戏区域至少需 {width} × {height}，请放大窗口后重试。",
   "openingGuide": "点击任务标题栏的游戏图标即可开局或继续本局。"
 };
@@ -37,34 +40,26 @@ export const GAME_COPY={
     "shortTitle": "接饭",
     "invite": "鱼饿了，帮我接两口饭？",
     "start": "开饭",
-    "replay": "再吃一顿",
-    "loading": "正在端碗过来",
-    "loadError": "碗没端稳，重新加载下",
-    "resultLead": "这顿坚持了",
+    "loading": "正在端来饭碗",
     "resultUnit": "秒",
-    "bestLabel": "最高记录",
     "control": {
-      "device": "键盘",
-      "key": "空格键",
-      "action": "接食物"
+      "space": "空格键"
     },
-    "rules": [
-      "裸露的食物",
-      "单独的泡泡",
-      "包着食物的泡泡",
-      "红牌标出的食物"
-    ],
-    "ruleNote": "按空格只接裸露食物。空泡泡、包食物的泡泡、红牌画的食物都不按。",
-    "pickyHint": "这顿忌口{food}，泡泡也别接。",
+    "rules": {
+      "catch": "接住",
+      "skip": "放过"
+    },
+    "ruleNote": "按空格键接住食物。空泡泡、包着食物的泡泡和红牌标出的食物都要放过。",
+    "pickyHint": "红牌标的是{food}，要放过。",
     "feedback": {
-      "rice_caught": "稳稳接住。",
+      "rice_caught": "接住食物了。",
       "bubble_mistake": "误接泡泡了。",
       "bubble_pass": "放过泡泡了。",
-      "rice_miss": "这口漏掉了。",
-      "food_refused": "忌口的食物，放过去了。",
-      "food_mistake": "这顿忌口这个，放下吧。",
-      "interrupted": "游戏已暂停，当前食物不计入成绩。",
-      "meal": "团好一颗饭球，收妥了。"
+      "rice_miss": "漏接食物了。",
+      "food_refused": "放过了红牌食物。",
+      "food_mistake": "误接了红牌食物。",
+      "interrupted": "已暂停，本次不计分。",
+      "meal": "收好一颗饭团。"
     }
   },
   "regulars-g04": {
@@ -72,28 +67,22 @@ export const GAME_COPY={
     "shortTitle": "上菜",
     "invite": "熟客上门了，帮我记下菜？",
     "start": "上菜",
-    "replay": "再开一桌",
     "loading": "正在擦桌子",
-    "loadError": "后厨卡住了，重新加载下",
-    "resultLead": "本局完成了",
     "resultUnit": "单",
-    "bestLabel": "最高记录",
+    "scoreLabel": "上对的订单数",
     "control": {
-      "device": "鼠标",
-      "key": "左键",
-      "action": "点菜品"
+      "left": "选中菜品"
     },
     "rules": [
-      "新点单要记牢",
-      "没改口照旧单"
+      "记住点单",
+      "照旧上菜"
     ],
-    "ruleNote": "等客人站定再上菜",
+    "ruleAccess": "有点单时记住菜品。没点单时，按这位客人上次的点单上菜。",
     "feedback": {
-      "timeout": "这单慢了，客人空手走了。",
-      "correct": "给{guest}的菜上对了。",
-      "wrong": "{guest}退回了这份菜。",
-      "lives": "还能失误 {lives} 次。",
-      "last": "累计失误 {max} 次，送走这位就打烊。"
+      "timeout": "上菜超时了。",
+      "correct": "给{guest}上对了菜。",
+      "wrong": "给{guest}上错了菜。",
+      "last": "已失误 {max} 次，本单后结算。"
     }
   },
   "planks-g02": {
@@ -101,25 +90,18 @@ export const GAME_COPY={
     "shortTitle": "补船",
     "invite": "船又漏了，搭把手呗？",
     "start": "补船",
-    "replay": "再补一程",
     "loading": "正在找木板",
-    "loadError": "木板卡住了，重新加载下",
-    "resultLead": "这趟补好了",
     "resultUnit": "块船板",
-    "bestLabel": "最高记录",
     "control": {
-      "device": "鼠标",
-      "key": "左键",
-      "action": "点破口"
+      "left": "选中破口"
     },
     "rules": [
-      "木板可旋转对齐",
-      "点匹配的破口"
+      "想象木板旋转",
+      "寻找吻合破口"
     ],
     "feedback": {
-      "correct": "补好了，这处不再漏水。",
-      "wrong": "边缘没对齐，留意发亮的破口。",
-      "lives": "还剩 {lives} 次机会"
+      "correct": "修补好了。",
+      "wrong": "木板与破口不吻合。"
     }
   },
   "balloon-winds": {
@@ -127,36 +109,27 @@ export const GAME_COPY={
     "shortTitle": "摘星",
     "invite": "风正好，去摘一颗星？",
     "start": "出发摘星",
-    "replay": "再飞一趟",
     "loading": "正在给气球充气",
-    "loadError": "气球没准备好，重新加载下",
-    "resultLead": "这趟摘到了",
     "resultUnit": "颗星",
-    "bestLabel": "最高记录",
     "control": {
-      "device": "鼠标",
-      "key": "左键·右键",
-      "action": "加风·减风"
+      "left": "左键加上云的坐标",
+      "right": "右键减去云的坐标"
     },
-    "rules": [
-      "左键加云坐标",
-      "右键减云坐标"
-    ],
-    "moveNote": "长按移动气球会换云",
+    "ruleNote": "借云移动气球，到达星星处",
     "feedback": {
-      "controls": "左键加风，右键减风",
-      "edge": "往这吹会出界",
-      "cold": "气囊冷却了",
-      "spent": "风力用尽",
-      "timeout": "气囊冷透，扣一颗心",
-      "empty": "风力耗尽，扣一颗心",
-      "add": "云飞向气球，左键加云坐标",
-      "subtract": "云飞向气球，右键减云坐标",
-      "moved": "气球飘至 {point}，新云朵已浮现",
-      "needsWind": "要借风力去摘星星",
-      "unreachable": "剩余风力不够从这吹到星星",
-      "star": "摘得星星，抵达 {point}",
-      "landed": "停在 {point}"
+      "controls": "左键加上云坐标，右键减去云坐标",
+      "edge": "会飞出边界",
+      "cold": "时间到了",
+      "spent": "风力用尽了",
+      "timeout": "时间到了，扣一颗心。",
+      "empty": "风力用尽了，扣一颗心。",
+      "add": "加上这朵云的坐标。",
+      "subtract": "减去这朵云的坐标。",
+      "moved": "移到 {point}，已换新云。",
+      "needsWind": "借助云移动气球到星星处。",
+      "unreachable": "剩下的云到不了星星处。",
+      "star": "在 {point} 摘到了星星。",
+      "landed": "停在 {point}。"
     }
   },
   "fish-leap": {
@@ -164,29 +137,24 @@ export const GAME_COPY={
     "shortTitle": "捞鱼",
     "invite": "金鱼要变身了，帮我捞一条？",
     "start": "开捞",
-    "replay": "再捞一局",
     "loading": "正在准备网兜",
-    "loadError": "网兜没准备好，重新加载下",
-    "resultLead": "本局存活了",
     "resultUnit": "秒",
-    "bestLabel": "最高记录",
     "control": {
-      "device": "鼠标",
-      "key": "左键",
-      "action": "点金鱼"
+      "left": "捞起金鱼"
     },
-    "rules": [
-      "同批入水先观察\n等普通鱼游走",
-      "普通鱼走不扣灯\n漏变身鱼会扣灯"
-    ],
-    "ruleNote": "冷却时记好入水顺序，专捞久留不走的鱼",
-    "netCooling": "网兜冷却中",
-    "netReady": "网兜就绪",
-    "netLoss": "漏掉变身鱼扣灯",
+    "ruleCatch": "变身前捞起",
+    "ruleLampLoss": "鱼变身扣一盏灯",
+    "ruleWait": "等普通鱼游走",
+    "ruleNote": "优先捞起留得最久的鱼",
+    "ruleAccess": "普通鱼游走不扣灯。网兜备好后，先捞起留得最久的鱼。漏掉会变身的鱼扣一盏灯。",
+    "netCooling": "网兜正在冷却",
+    "netReady": "网兜准备好了",
+    "netLoss": "有金鱼变身了。",
     "netCasting": "正在下网",
+    "lives": "还剩 {lives} 盏灯。",
     "feedback": {
-      "evolving": "赶在变身前捞起了金鱼。",
-      "ordinary": "捞到了普通金鱼。"
+      "evolving": "赶在变身前捞起了。",
+      "ordinary": "捞起了普通金鱼。"
     }
   }
 };

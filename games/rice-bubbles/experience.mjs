@@ -42,17 +42,7 @@ function setView(next){
   for(const name of panels)$(name+'-panel').hidden=!((next==='finished'&&name==='result')||next===name);
   if(next==='welcome'||next==='finished')announce('');
   scene.layout(next);
-  placeControls();
   options.onViewChange?.(next);
-}
-function placeControls(){
-  const l=scene.layoutSnapshot();
-  root.style.setProperty('--companion-width',200*l.scale+'px');
-  if(view==='welcome'||view==='finished'){
-    const panel=$(view==='welcome'?'welcome-panel':'result-panel'),p=panel.getBoundingClientRect(),r=root.getBoundingClientRect();
-    const companionWidth=parseFloat(getComputedStyle(panel).getPropertyValue('--companion-width'));
-    scene.placeMenuAvatar(p.right-r.left+companionWidth/2,p.bottom-r.top-8*l.scale);
-  }
 }
 function announce(text){$('feedback').textContent=text;}
 function handleEvents(){
@@ -140,7 +130,7 @@ async function resumeGame(){
     if(resumed.current.mealReady&&scene.chase&&resumed.clockMs<resumed.current.mealFormAtMs){const at=scene.mealStartAt(resumed);session.scheduleMeal(at);scene.scheduleMeal(session.snapshot(),at);}
     if(resumed.lives===0)session.scheduleSettlement(scene.failureEndAt(resumed.clockMs));
     view='playing';root.dataset.view=view;$('scene-root').inert=false;
-    $('scene-root').focus({preventScroll:true});placeControls();render();recover();options.onViewChange?.('playing');return true;
+    $('scene-root').focus({preventScroll:true});render();recover();options.onViewChange?.('playing');return true;
   }catch(error){fail(error);return false;}finally{playPending=false;}
 }
 function showResult(){
@@ -182,7 +172,7 @@ function fail(error){
   cancelLoop();sound.stop();errors.push(error.stack??String(error));console.error(error);
   view='error';root.dataset.view=view;$('scene-root').inert=true;
   for(const name of panels)$(name+'-panel').hidden=name!=='error';
-  $('error-message').textContent=SHARED_COPY.loadedError;$('feedback').hidden=true;$('reload-button').focus({preventScroll:true});options.onViewChange?.('error');
+  $('feedback').hidden=true;$('reload-button').focus({preventScroll:true});options.onViewChange?.('error');
 }
 
 
@@ -194,14 +184,14 @@ function suspend(reason='background'){presented=false;root.dataset.presented='fa
 function paintStatic(){pixelText?.flush();}
 function preview(reason='preview'){
   suspend(reason);if(!ready||disposed)return false;
-  if(['welcome','finished'].includes(view)){scene.layout(view);placeControls();render();}
+  if(['welcome','finished'].includes(view)){scene.layout(view);render();}
   updateStart();paintStatic();return true;
 }
 async function present({resume=true,start=false}={}){
   if(disposed)return false;presented=true;root.dataset.presented='true';pixelText?.present();if(!ready)return false;
   const drawn=scene.layoutSnapshot();
   if(drawn.width!==host.clientWidth||drawn.height!==host.clientHeight)scene.layout(view);
-  placeControls();updateStart();
+  updateStart();
   if(view==='welcome'&&start)return startGame();
   if(view==='paused'&&resume)return resumeGame();
   if(view==='paused'){paintStatic();return true;}
@@ -227,7 +217,8 @@ const initialization=(async()=>{
  try{
   const [text]=await Promise.all([ui?ui.markup:fetch(new URL('./markup.html',import.meta.url)).then(response=>{if(!response.ok)throw Error(`游戏界面加载失败 (${response.status})`);return response.text();}),pixelFace.load(),styleReady]);
   if(disposed)return false;const template=document.createElement('template');template.innerHTML=text;root.replaceChildren(...template.content.firstElementChild.childNodes);markupLoaded=true;
-  applyCopy(root,{'#loading-panel h1':copy.loading,'#start-button span':copy.start,'#result-title':copy.resultLead,'#result-panel .survival-result>span':copy.resultUnit,'#result-panel .best-label':copy.bestLabel,'#again-button':copy.replay,'#back-button':SHARED_COPY.next,'#error-title':copy.loadError,'#reload-button':SHARED_COPY.reload});
+  applyCopy(root,{'#loading-panel h1':copy.loading,'#start-button span':copy.start,'#result-panel .survival-result>span':copy.resultUnit,
+    '#catch-label':copy.rules.catch,'#skip-label':copy.rules.skip,'#rice-input-rule':copy.ruleNote});
   mountControlGuide(root,copy);
   records=mountGameRecords(root,'#welcome-panel','#result-panel');
   document.fonts.add(pixelFace);pixelText=createPixelText(root);root.dataset.font='loaded';
@@ -238,7 +229,7 @@ const initialization=(async()=>{
 on($('start-button'),'click',startGame);on($('again-button'),'click',startGame);
 on($('back-button'),'click',()=>{if(canRandom)void options.onRandom().catch(fail);});on($('reload-button'),'click',()=>{void options.onReload().catch(fail);});
 if(!options.onRandom)$('back-button').hidden=true;
-if(options.onRandom){$('back-button').textContent=SHARED_COPY.next;$('back-button').disabled=!options.canRandom;}
+if(options.onRandom)$('back-button').disabled=!options.canRandom;
 on(root,'keydown',keydown);on(window,'keyup',keyup,{capture:true});
 if(!options.beforePlay){
 on(window,'blur',()=>{releaseUncertain=physicalSpace;if(view==='playing')pauseGame('blur');else cancelLoop();});
@@ -250,15 +241,10 @@ const observer=new ResizeObserver(()=>{
   const drawn=scene.layoutSnapshot();
   if(drawn.width===host.clientWidth&&drawn.height===host.clientHeight)return;
   if(view==='playing')pauseGame('resize');
-  scene.layout(view);placeControls();updateStart();render();if(!presented){paintStatic();setFrozen(frozenVisible);}else if(view==='paused')void resumeGame();
+  scene.layout(view);updateStart();render();if(!presented){paintStatic();setFrozen(frozenVisible);}else if(view==='paused')void resumeGame();
 });observer.observe(host);listeners.push(()=>observer.disconnect());
 
-  for(const [index,kind] of ['rice','bubble','wrapped','picky'].entries()){
-    const legend=$(kind+'-legend');
-    paintLegend(legend,kind);
-    legend.nextElementSibling.textContent=copy.rules[index];
-  }
-  $('rice-input-rule').textContent=copy.ruleNote;
+  for(const kind of ['rice','bubble','wrapped','picky'])paintLegend($(kind+'-legend'),kind);
   $('scene-root').setAttribute('aria-label',copy.title);
   if(!qa)bestSeconds=records.readScore(bestKey);
   await scene.init();
@@ -269,9 +255,10 @@ const observer=new ResizeObserver(()=>{
     session=createSession({checkpoint:saved.session});lobbyClock=saved.lobbyClock;scene.restore(saved.scene);view=saved.view==='playing'?'paused':saved.view;root.dataset.view=view;
     for(const name of panels)$(name+'-panel').hidden=!((view==='finished'&&name==='result')||view===name);
     if(view==='finished'){$('elapsed-value').textContent=String(Math.floor(session.snapshot().survivedMs/1000));$('best-value').textContent=String(bestSeconds);}
-    render();placeControls();
+    if(view==='welcome'||view==='finished')scene.layout(view);
+    render();
   }else setView('welcome');updateStart();if(presented)runLoop();else pixelText.suspend();return true;
- }catch(error){if(!disposed){if(markupLoaded)fail(error);else{errors.push(error.stack??String(error));view='error';root.dataset.view='error';root.replaceChildren();const panel=document.createElement('section');panel.className='paper dialog-panel';const title=document.createElement('h2');title.textContent='游戏界面加载失败';const message=document.createElement('p');message.textContent=SHARED_COPY.loadedError;const reload=document.createElement('button');reload.id='reload-button';reload.className='primary';reload.textContent=SHARED_COPY.reload;on(reload,'click',()=>{void options.onReload().catch(fail);});panel.append(title,message,reload);root.append(panel);console.error(error);}}return false;}
+ }catch(error){if(!disposed){if(markupLoaded)fail(error);else{errors.push(error.stack??String(error));view='error';root.dataset.view='error';root.replaceChildren();const panel=document.createElement('section');panel.className='paper dialog-panel';const title=document.createElement('h2');title.textContent=SHARED_COPY.loadedError;const reload=document.createElement('button');reload.id='reload-button';reload.className='primary';reload.textContent=SHARED_COPY.reload;on(reload,'click',()=>{void options.onReload().catch(fail);});panel.append(title,reload);root.append(panel);console.error(error);}}return false;}
 })();
 return {ready:initialization,snapshot,pause:pauseGame,resume:resumeGame,suspend,present,preview,paintStatic,finish:finishGame,
   getRunState:()=>({view,hasRound:session!==null}),

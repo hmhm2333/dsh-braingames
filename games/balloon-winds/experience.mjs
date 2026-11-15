@@ -408,10 +408,7 @@ export function mountGame(host, options) {
     hold?.cancel({untilRelease: true});
     stop();
     updateInputs();
-    if (ready) {
-      setText($('error-detail'), SHARED_COPY.loadedError);
-      redraw();
-    }
+    if (ready) redraw();
     options.onViewChange();
     console.error(error);
   }
@@ -471,12 +468,11 @@ export function mountGame(host, options) {
     document.fonts.add(font);
     style.textContent = css;
     root.innerHTML = html;
-    $('pilot').title = copy.moveNote;
-    $('pilot').setAttribute('aria-label', copy.moveNote);
-    applyCopy(root, {'#rule-a': copy.rules[0], '#rule-b': copy.rules[1],
-      '#start': copy.start, '#result-lead': copy.resultLead, '#unit': copy.resultUnit,
-      '#best-label': copy.bestLabel, '#replay': copy.replay, '#random': SHARED_COPY.next,
-      '#load-error': copy.loadError, '#reload': SHARED_COPY.reload});
+    $('pilot').title = SHARED_COPY.moveHint;
+    $('pilot').setAttribute('aria-label', SHARED_COPY.moveHint);
+    $('resume').title = SHARED_COPY.freezeHint;
+    $('resume').setAttribute('aria-label', SHARED_COPY.freezeHint);
+    applyCopy(root, {'#start': copy.start, '#unit': copy.resultUnit, '#wind-goal': copy.ruleNote});
     mountControlGuide(root, copy);
     records = mountGameRecords(root, '#welcome', '#result');
     drawRuleArt($('rule-add'), $('rule-subtract'), art);

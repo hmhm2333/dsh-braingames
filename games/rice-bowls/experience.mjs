@@ -34,8 +34,8 @@ const seed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
 function on(target,event,fn,options){target.addEventListener(event,fn,options);listeners.push(()=>target.removeEventListener(event,fn,options));}
 function canvas(w,h,label){const c=document.createElement('canvas');c.width=w;c.height=h;c.setAttribute('role','img');c.setAttribute('aria-label',label);return c;}
 function textLabel(text){const span=document.createElement('span');span.dataset.pixelText='';span.textContent=text;return span;}
-function mealImage(id,label=''){
-  const img=document.createElement('img');img.src=mealUrl(id);img.alt=label;img.draggable=false;return img;
+function mealImage(id){
+  const img=document.createElement('img');img.src=mealUrl(id);img.alt='';img.draggable=false;return img;
 }
 function fitStage(){
   const width=root.clientWidth,height=root.clientHeight,count=session?.activeMeals.length??4,base=viewportLayout(width,height,count),phase=session?.phase??'welcome';
@@ -51,9 +51,9 @@ function stop(){if(timer!==null)clearTimeout(timer);if(raf!==null)cancelAnimatio
 function showError(error){
   console.error(error);errors.push(error.message);stop();cancelMoveFrame();dragSurface?.end();moveGesture?.cancel();root.dataset.phase='error';pixelText?.suspend();
   const box=document.createElement('section');box.className='window status-dialog';box.setAttribute('role','alert');
-  const title=textLabel(copy.loadError),text=document.createElement('p'),reload=document.createElement('button');
-  text.id='error-detail';text.textContent=SHARED_COPY.loadedError;reload.id='reload';reload.className='primary';reload.append(textLabel(SHARED_COPY.reload));
-  on(reload,'click',()=>{void options.onReload().catch(showError);});box.append(title,text,reload);
+  const title=textLabel(SHARED_COPY.loadedError),reload=document.createElement('button');
+  reload.id='reload';reload.className='primary';reload.append(textLabel(SHARED_COPY.reload));
+  on(reload,'click',()=>{void options.onReload().catch(showError);});box.append(title,reload);
   root.replaceChildren(box);pixelText?.present();pixelText?.flush();reload.focus({preventScroll:true});options.onViewChange?.('error');
 }
 function token(){return`${session.phase}:${session.visit?.id}:${session.canSelect()}`;}
@@ -77,15 +77,15 @@ function updateUI(force=false){
   for(const id of ['welcome','summary','loading'])$(id).hidden=id!==s.phase;
   const phaseChanged=layoutPhase!==s.phase;
   if(phaseChanged){layoutPhase=s.phase;fitStage();}
-  const handle=$('move-whale'),moveHint=frozenVisible?SHARED_COPY.freezeHint:'长按鲸鱼娘移动餐台';
+  const handle=$('move-whale'),moveHint=frozenVisible?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
   handle.setAttribute('aria-label',moveHint);handle.title=moveHint;
   $('menu').hidden=s.phase!=='running';
   $('lives').hidden=s.phase!=='running';
-  $('lives').setAttribute('aria-label',`还能失误 ${s.lives} 次`);
+  $('lives').setAttribute('aria-label',SHARED_COPY.chancesLeft.replace('{lives}',s.lives));
   if(s.service&&s.service.outcome.visitId!==announcedVisit){
     const out=s.service.outcome;announcedVisit=out.visitId;
     const {feedback}=copy,guest=guestName(out.guest);
-    const tail=s.lives?feedback.lives.replace('{lives}',s.lives):feedback.last.replace('{max}',MAX_MISTAKES);
+    const tail=s.lives?SHARED_COPY.chancesLeft.replace('{lives}',s.lives):feedback.last.replace('{max}',MAX_MISTAKES);
     $('announcement').textContent=out.reason==='timeout'?feedback.timeout+tail:out.correct?feedback.correct.replace('{guest}',guest):feedback.wrong.replace('{guest}',guest)+tail;
   }
   for(const [i,heart] of [...$('lives').children].entries())heart.dataset.lost=String(i>=s.lives);
@@ -124,18 +124,13 @@ function updateUI(force=false){
     $('customer-value').textContent=customers;$('best-value').textContent=bestCustomers;
   }
 }
-function positionLobby(){
-  if(!['welcome','summary'].includes(session.phase))return;
-  const panel=$(session.phase).getBoundingClientRect(),stage=root.getBoundingClientRect(),v=scene.viewport;
-  scene.lobbyRoot=[panel.right-stage.left+v.companionWidth/2,panel.bottom-stage.top-8];
-}
 function syncMoveHandle(){
   const button=$('move-whale');button.hidden=!['welcome','running','summary',...(frozenVisible?['paused']:[])].includes(session.phase)||!!errors.length;
   if(button.hidden)return;
   const box=scene.dragBounds(session,dragPreview),key=Object.values(box).join(':');if(key===handleKey)return;handleKey=key;
   for(const [name,value]of Object.entries(box))button.style[name]=value+'px';
 }
-function draw(){positionLobby();scene.draw(session,{moving:dragPreview});syncMoveHandle();const view=runView();if(view!==lastView){lastView=view;options.onViewChange?.(view);}}
+function draw(){scene.draw(session,{moving:dragPreview});syncMoveHandle();const view=runView();if(view!==lastView){lastView=view;options.onViewChange?.(view);}}
 function runView(){return errors.length?'error':session?.phase==='running'?'playing':session?.phase==='summary'?'finished':session?.phase==='paused'?'paused':session?.phase??'loading';}
 function schedule(){
   if(disposed||!presented||relocating||!playableSize(root.clientWidth,root.clientHeight)||session.phase!=='running')return;
@@ -197,8 +192,9 @@ function syncMenu(){
   $('menu').replaceChildren();
   const slots=session.activeMeals.map((id,index)=>({id,...menuSlot(index)})).sort((a,b)=>a.row-b.row||a.column-b.column);
   for(const {id,row,column} of slots){
-    const button=document.createElement('button');button.className='meal-choice';button.dataset.meal=id;button.dataset.gameControl='';button.setAttribute('aria-label',mealName(id));button.style.gridRow=String(row);button.style.gridColumn=String(column);
-    button.append(mealImage(id,mealName(id)),textLabel(mealName(id)));$('menu').append(button);
+    const button=document.createElement('button');button.className='meal-choice';button.dataset.meal=id;button.dataset.gameControl='';button.style.gridRow=String(row);button.style.gridColumn=String(column);
+    button.title=mealName(id);button.setAttribute('aria-label',button.title);
+    button.append(mealImage(id));$('menu').append(button);
   }
   fitStage();
 }
@@ -206,7 +202,9 @@ function availability(){if(!session)return;const small=!playableSize(root.client
 async function init(){
   const markup=options.ui?options.ui.markup:await (async()=>{const response=await fetch(new URL('./service-markup.html',import.meta.url));if(!response.ok)throw Error('游戏界面加载失败 ('+response.status+')');return response.text();})();
   root.innerHTML=markup;
-  applyCopy(root,{'#welcome .rule:first-child>span':copy.rules[0],'#welcome .rule:last-child>span':copy.rules[1],'#start span':copy.start,'#arrival-hint':copy.ruleNote,'#result-lead':copy.resultLead,'#summary .customer-result>span':copy.resultUnit,'#summary .best-result>span:first-child':copy.bestLabel,'#replay span':copy.replay,'#random span':SHARED_COPY.next,'#loading p':copy.loading,'#error p:first-child':copy.loadError,'#reload span':SHARED_COPY.reload});
+  applyCopy(root,{'#welcome .rule:first-child>span':copy.rules[0],'#welcome .rule:last-child>span':copy.rules[1],
+    '#order-rules-access':copy.ruleAccess,'#start span':copy.start,'#score-label':copy.scoreLabel,
+    '#result-unit':copy.resultUnit,'#best-unit':copy.resultUnit,'#loading p':copy.loading});
   mountControlGuide(root,copy);
   records=mountGameRecords(root,'#welcome .window-body','#summary .window-body');
   await styleReady;await pixelFace.load();document.fonts.add(pixelFace);pixelText=createPixelText(root);
@@ -233,7 +231,6 @@ async function init(){
   on($('menu'),'click',event=>{const button=event.target.closest('button[data-meal]');if(button)serve(button.dataset.meal);});
   on($('replay'),'click',replay);
   on($('random'),'click',()=>{if(canRandom)void options.onRandom().catch(showError);});
-  on($('reload'),'click',()=>{void options.onReload().catch(showError);});
   on(shadow,'pointerdown',event=>{
     if(event.button!==0)return;const button=event.target.closest('[data-game-control]');
     pointer=button&&root.contains(button)?{id:event.pointerId,button,token:button.dataset.meal?token():null,allow:false}:null;
@@ -270,7 +267,7 @@ function checkpoint(){if(!ready||errors.length)return null;return{version:1,seed
 function setFrozen(active){
   frozenVisible=active;frozenDragged=false;
   const button=$('move-whale');if(!button)return;
-  button.title=active?SHARED_COPY.freezeHint:'长按鲸鱼娘拖动餐台';
+  button.title=active?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
   button.setAttribute('aria-label',button.title);
   button.tabIndex=active?0:-1;
 }

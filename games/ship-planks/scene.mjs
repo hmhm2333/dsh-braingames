@@ -1,6 +1,6 @@
 import {CONTACT_MS,MOTION_MS,GROW_MS,INTRO_PATCH} from './core.mjs';
 import {LAYOUT,HULL,MAST,panelBox,siteBox,actorPath,worldPoint,worldDirection} from './sampan.mjs';
-import {VERDICT_TICK,VERDICT_CROSS} from '../../runtime/presentation.mjs';
+import {LOBBY_COMPANION_BASELINE,LOBBY_COMPANION_SIZE,VERDICT_TICK,VERDICT_CROSS} from '../../runtime/presentation.mjs';
 export {LAYOUT,panelBox,siteBox};
 const clamp=t=>Math.max(0,Math.min(1,t)),ease=t=>{t=clamp(t);return t*t*(3-2*t);},lerp=(a,b,t)=>a+(b-a)*t;
 const WOOD={ink:'#65482e',face:'#d79a50',light:'#f4c783'};
@@ -43,8 +43,8 @@ function createMast(){
 export class RepairScene{
  constructor(canvas,whale,companion,occluder){this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:true,willReadFrequently:true});this.companion=companion;this.lobbyCtx=companion.getContext('2d',{alpha:true});this.whale=whale;this.mast=createMast();this.drawCount=0;this.heading=0;const mask=document.createElement('canvas');mask.width=80;mask.height=96;paintMastRig(mask.getContext('2d'),true);occluder.setAttribute('href',mask.toDataURL());mask.width=0;mask.height=0;}
  drawLobby(view){
-  const c=this.lobbyCtx,m=this.whale.manifest,f=m.frames[m.clips[view==='welcome'?'lobby_hold':'lobby_idle'].frames[0]],root=[100,190];
-  c.clearRect(0,0,200,200);c.imageSmoothingEnabled=false;c.drawImage(this.whale.image,...f.rect,root[0]+f.trim[0]-f.anchor[0],root[1]+f.trim[1]-f.anchor[1],f.trim[2],f.trim[3]);
+  const c=this.lobbyCtx,m=this.whale.manifest,f=m.frames[m.clips[view==='welcome'?'lobby_hold':'lobby_idle'].frames[0]],root=[LOBBY_COMPANION_SIZE/2,LOBBY_COMPANION_BASELINE];
+  c.clearRect(0,0,this.companion.width,this.companion.height);c.imageSmoothingEnabled=false;c.drawImage(this.whale.image,...f.rect,root[0]+f.trim[0]-f.anchor[0],root[1]+f.trim[1]-f.anchor[1],f.trim[2],f.trim[3]);
   if(view==='welcome'){const socket=[root[0]+f.socket[0]-f.anchor[0],root[1]+f.socket[1]-f.anchor[1]];drawWood(c,INTRO_PATCH.cells,socket[0]-24,socket[1]-24,12);}
  }
  actor(clip,t,root=LAYOUT.whale){

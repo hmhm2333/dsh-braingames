@@ -4,13 +4,13 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
   let current=games[0],stage=null,loading=null,closing=null,opening=null,reloading=null,changing=null,selection=null,restorePromise=null,restoreCheckpoint=null;
   let intent=0,disposed=false,disposePromise=null,roundChosen=false;
   let enabled=new Set(enabledGameIds),invitationEnabled=autoInvite,useRecommendation=recommendByTask,keepVisible=keepVisibleOnPause,requireRunning=inviteRequireRunning,requireNoUnread=inviteRequireNoUnread;
-  let presentation='hidden',busy=false,eligible=false,invited=false,error='',selectionFailed=false;
+  let presentation='hidden',busy=false,eligible=false,invited=false,error='';
   const notify=()=>onChange();
   const runState=()=>stage?.getRunState()??{view:null,hasRound:false};
   const playable=()=>games.filter(game=>enabled.has(game.id)&&canFit(game));
   const alternatives=(exclude=current.id)=>playable().filter(game=>game.id!==exclude);
   const randomGame=candidates=>{const value=new Uint32Array(1);crypto.getRandomValues(value);return candidates[value[0]%candidates.length];};
-  function status(){return{gameId:current.id,presentation,mode:stage?.getMode()??'background',resident:stage!==null,loading:loading!==null||closing!==null||changing!==null||reloading!==null||selection!==null||restorePromise!==null,selecting:selection!==null,selectionFailed,error,
+  function status(){return{gameId:current.id,presentation,mode:stage?.getMode()??'background',resident:stage!==null,loading:loading!==null||closing!==null||changing!==null||reloading!==null||selection!==null||restorePromise!==null,selecting:selection!==null,error,
     ...runState(),canStart:enabled.size>0,canReplay:enabled.has(current.id),canRandom:alternatives().length>0,autoInvite:invitationEnabled,enabledGameIds:[...enabled],recommendByTask:useRecommendation,keepVisibleOnPause:keepVisible,inviteRequireRunning:requireRunning,inviteRequireNoUnread:requireNoUnread};}
   function availability(){stage?.setKeepVisible?.(keepVisible);stage?.setAvailability({canReplay:enabled.has(current.id),canRandom:alternatives().length>0});}
   function modeChanged(mode){if(disposed)return;presentation=mode==='foreground'?'active':stage?.isVisible()?'frozen':'hidden';notify();}
@@ -23,13 +23,21 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
     closing=Promise.resolve().then(()=>previous.dispose()).finally(()=>{closing=null;notify();});
     notify();return closing;
   }
-  async function pick(candidates,forceRandom=false){
-    if(!candidates.length)throw Error('请先勾选至少一款游戏');
+  async function pick(candidates,forceRandom){
     if(forceRandom||!useRecommendation||candidates.length===1)return randomGame(candidates);
     if(typeof chooseGame!=='function')throw Error('默认模型推荐尚未接入');
     const job={controller:new AbortController()};selection=job;notify();
-    try{const id=await chooseGame(candidates,{signal:job.controller.signal});const game=candidates.find(game=>game.id===id);if(!game)throw Error('模型选择了游戏池以外的游戏');return game;}
-    catch(failure){if(!job.controller.signal.aborted)selectionFailed=true;throw failure;}
+    try{
+      const id=await chooseGame(candidates,{signal:job.controller.signal});
+      job.controller.signal.throwIfAborted();
+      const game=candidates.find(game=>game.id===id);
+      if(!game)throw Error('模型选择了游戏池以外的游戏');
+      return game;
+    }catch(failure){
+      job.controller.signal.throwIfAborted();
+      console.warn('BrainGames recommendation failed. Starting with a local random game.',failure);
+      return randomGame(candidates);
+    }
     finally{if(selection===job)selection=null;notify();}
   }
   async function ensure(){
@@ -43,20 +51,15 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
     try{return await pending;}catch(failure){error=failure.message;await closeStage();throw failure;}
     finally{if(loading===pending)loading=null;notify();}
   }
-  async function present({start=false,random:forceRandom=false,gameId}={}){
+  async function present({start=false,forceRandom=false}={}){
     if(disposed)return{opened:false,reason:'unloaded'};
     const state=runState();
     const hasActiveRound=['playing','paused'].includes(state.view);
     if(!enabled.size&&!state.hasRound)return{opened:false,reason:'no-enabled-game'};
-    const requested=gameId&&games.find(game=>game.id===gameId&&enabled.has(game.id));
-    if(gameId&&!requested)return{opened:false,reason:'no-enabled-game'};
-    if(requested&&requested!==current&&hasActiveRound)return{opened:false,reason:'round-in-progress'};
     const fits=canFit(current);
-    const blocked=requested&&!canFit(requested)||!requested&&!fits&&(hasActiveRound||!playable().length);
-    if(blocked)return{opened:false,reason:'viewport',gameId:requested?.id??current.id};
-    const mustSwitch=requested?requested!==current:
-      !state.hasRound&&(!enabled.has(current.id)||!fits)||state.view==='finished'&&!fits;
-    const ticket=++intent;error='';selectionFailed=false;presentation='active';notify();
+    if(!fits&&(hasActiveRound||!playable().length))return{opened:false,reason:'viewport',gameId:current.id};
+    const mustSwitch=!state.hasRound&&(!enabled.has(current.id)||!fits)||state.view==='finished'&&!fits;
+    const ticket=++intent;error='';presentation='active';notify();
     try{
       if(stage&&mustSwitch){
         roundChosen=false;await closeStage();
@@ -64,10 +67,10 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
       else if(closing)await closing;
       if(disposed||ticket!==intent)return{opened:false,reason:'superseded'};
       if(!stage&&!enabled.size){presentation='hidden';notify();return{opened:false,reason:'no-enabled-game'};}
-      if(!stage&&!loading&&(requested||!roundChosen||!enabled.has(current.id)||!canFit(current))){
+      if(!stage&&!loading&&(!roundChosen||!enabled.has(current.id)||!canFit(current))){
         const candidates=playable();
         if(!candidates.length){presentation='hidden';notify();return{opened:false,reason:'viewport',gameId:current.id};}
-        const selected=requested??await pick(candidates,forceRandom);
+        const selected=await pick(candidates,forceRandom);
         if(disposed||ticket!==intent)return{opened:false,reason:'superseded'};
         current=selected;roundChosen=true;
       }
@@ -119,7 +122,7 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
     if(stage?.getRunState().view!=='finished')return Promise.reject(Error('Finish the current round before changing games'));
     const previous=current.id;
     if(!alternatives(previous).length)return Promise.resolve({changed:false,reason:'no-other-enabled-game'});
-    const ticket=++intent;error='';selectionFailed=false;notify();
+    const ticket=++intent;error='';notify();
     const pending=(async()=>{
       await closeStage();
       if(disposed)return{changed:false,reason:'superseded'};
@@ -127,7 +130,7 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
       if(!others.length){roundChosen=false;presentation='hidden';notify();return{changed:false,reason:'no-other-enabled-game'};}
       current=randomGame(others);roundChosen=true;
       if(disposed||ticket!==intent)return{changed:false,reason:'superseded'};
-      return present({random:true});
+      return present({forceRandom:true});
     })();
     changing=pending.finally(()=>{changing=null;notify();});
     return changing;
@@ -154,14 +157,10 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
     if(disposePromise)return disposePromise;disposed=true;cancelIntent();presentation='hidden';
     disposePromise=(async()=>{try{if(loading)await loading;if(reloading)await reloading;if(changing)await changing;}finally{await closeStage();notify();}})();return disposePromise;
   }
-  function open(options={}){
-    if(restorePromise)return restorePromise.then(()=>open(options));if(reloading)return reloading;if(changing)return changing;
-    if(opening&&presentation==='active'){
-      if(options.gameId&&loading)return opening;
-      if(!options.random&&!options.gameId)return opening;
-    }
-    if((options.random||options.gameId)&&selection)cancelIntent();
-    const pending=present(options);opening=pending;return pending.finally(()=>{if(opening===pending)opening=null;});
+  function open({start=false}={}){
+    if(restorePromise)return restorePromise.then(()=>open({start}));if(reloading)return reloading;if(changing)return changing;
+    if(opening&&presentation==='active')return opening;
+    const pending=present({start});opening=pending;return pending.finally(()=>{if(opening===pending)opening=null;});
   }
   return{status,open,observe,background,hide,dismissInvitation,configure,random,reload,checkpoint,restore,abandonRestore,dispose,refreshAvailability:availability,diagnostics:()=>({...status(),stage:stage?.getDiagnostics()??null})};
 }

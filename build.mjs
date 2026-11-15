@@ -60,7 +60,7 @@ new vm.Script(entryBundle);await writeFile(resolve(out,'client.js'),entryBundle)
 
 const {manifest,report:packingReport}=await packAtlases(resolve(project,'assets/g10'),resolve(out,'assets'));
 const ui={markup:await readText(resolve(game,'markup.html')),style:await readText(resolve(game,'style.css')),font:(await readFile(resolve(game,'ui/song-subset.ttf'))).toString('base64'),icons:{}};
-for(const icon of ['arrow-right','clock'])ui.icons['./ui/icons/'+icon+'.svg']='data:image/svg+xml;base64,'+Buffer.from(await readText(resolve(game,'ui/icons/'+icon+'.svg'))).toString('base64');
+ui.icons['./ui/icons/clock.svg']='data:image/svg+xml;base64,'+Buffer.from(await readText(resolve(game,'ui/icons/clock.svg'))).toString('base64');
 let pixi=await readText(resolve(project,'vendor/pixi.mjs'));
 pixi=pixi.replace(/\/\/# sourceMappingURL=.*$/gm,'').replace(/export \{([^}]+)\};/g,(_,names)=>'return {'+names.split(',').map(s=>{const p=s.trim().split(/\s+as\s+/);return p.length===2?p[1]+':'+p[0]:p[0];}).join(',')+'};');
 pixi=pixi.replaceAll('import.meta.url',"'braingames:/pixi.mjs'");

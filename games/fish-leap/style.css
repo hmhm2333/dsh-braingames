@@ -20,27 +20,18 @@ button:disabled { cursor: default; pointer-events: none; }
 #move-whale { position: absolute; padding: 0; border: 0; background: transparent; cursor: default; touch-action: none; }
 #move-whale[data-movable] { cursor: grab; }
 #move-whale[data-dragging] { cursor: grabbing; }
-.lobby { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  display: grid; grid-template-columns: 280px 200px; align-items: center; pointer-events: none; }
-#companion { width: 200px; height: 200px; grid-column: 2; grid-row: 1; }
-.stage[data-compact] .lobby { grid-template-columns: 280px; gap: 4px; justify-items: center; }
-.stage[data-compact] #companion { grid-column: 1; width: 108px; height: 108px; }
-.stage[data-compact] .paper { grid-row: 2; }
 .paper {
-  grid-column: 1; grid-row: 1; width: 280px;
   padding: 20px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink);
   box-shadow: inset 2px 2px #fffbed, inset -2px -2px #d8ccb1, 4px 4px #0e172c55;
   font: 18px/24px "Whale Fish Pixel", serif; text-align: center;
   clip-path: polygon(0 4px,2px 4px,2px 2px,4px 2px,4px 0,calc(100% - 4px) 0,calc(100% - 4px) 2px,calc(100% - 2px) 2px,calc(100% - 2px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 2px) calc(100% - 4px),calc(100% - 2px) calc(100% - 2px),calc(100% - 4px) calc(100% - 2px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 2px),2px calc(100% - 2px),2px calc(100% - 4px),0 calc(100% - 4px));
 }
 .paper p, .paper h1, .paper h2 { margin: 0; font: inherit; }
-.rules { display: grid; grid-template-columns: repeat(2, 1fr); margin: 0 0 20px; padding: 4px 0 8px; }
+.rules { display: grid; grid-template-columns: repeat(2, 1fr); margin: 0 0 12px; padding: 4px 0 8px; }
 .rules > div { display: flex; flex-direction: column; align-items: center; gap: 8px; white-space: pre-line; font-size: 15px; line-height: 21px; }
-.paper .rule-note { font: 14px/20px system-ui, sans-serif; color: var(--ink); margin: 0 0 8px; }
-.fish-tip { position: absolute; z-index: 2; transform: translate(-50%, -100%); pointer-events: none;
-  padding: 3px 7px; border: 1px solid var(--gold); background: var(--paper); color: var(--ink);
-  font: 14px/20px system-ui, sans-serif; white-space: nowrap; }
-.rules > div > canvas { width: 112px; max-width: 100%; }
+.paper .rule-note { font-size: 15px; line-height: 21px; color: var(--ink); margin: 0 0 8px; text-wrap: balance; }
+.rules > div > canvas:not(#rule-light-loss) { width: 112px; max-width: 100%; }
+#rule-light-loss { width: 39px; height: 24px; }
 .rules > div + div { border-left: 2px solid #e6ddc3; }
 .paper button { display: block; width: 100%; color: var(--ink); font: inherit; }
 .primary { min-height: 42px; padding: 7px 12px; border: 2px solid var(--gold); background: #f3d391;
@@ -50,6 +41,7 @@ button:disabled { cursor: default; pointer-events: none; }
 .paper .secondary { min-height: 36px; padding: 4px 8px; border: 2px solid transparent; color: var(--muted); background: transparent; }
 .secondary:hover:not(:disabled), .secondary:focus-visible { border-color: #c6baa0; background: #e9e0c8; }
 .paper button:disabled { opacity: .58; }
+#error .primary { margin-top: 12px; }
 .actions { display: grid; gap: 8px; }
 #result-lead, .best { color: var(--muted); }
 .paper .number { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0 16px; }
@@ -58,13 +50,8 @@ button:disabled { cursor: default; pointer-events: none; }
 .best-score { display: flex; gap: 6px; }
 .paper #practice { color: var(--muted); font-size: 15px; line-height: 21px; }
 .paper [data-braingames-controls] { margin-bottom: 12px; }
-.stage[data-compact] .rules { margin-bottom: 8px; }
-.stage[data-compact][data-short] #companion { width: 64px; height: 64px; }
-.stage[data-compact][data-short] .rules { padding: 1px 0 5px; }
-.stage[data-compact][data-short] .rule-note { margin-bottom: 4px; }
-.stage[data-compact][data-short] #welcome { padding-block: 11px; }
-.stage[data-compact][data-short] .paper { padding-block: 16px; }
-#error-detail { font: 13px/18px system-ui, sans-serif; overflow-wrap: anywhere; }
+.stage[data-compact] .rules { margin-bottom: 8px; padding: 1px 0 5px; }
+.stage[data-compact] .rule-note { margin-bottom: 4px; }
 [data-pixel-text] { position: relative; }
 [data-pixel-ready] { -webkit-text-fill-color: transparent; }
 span[data-pixel-text], strong[data-pixel-text] { display: inline-block; }

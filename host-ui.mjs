@@ -28,14 +28,14 @@ const groups = [
     settings: [
       ['autoInvite', '游戏邀请', '自动弹出邀请', '只从任务标题栏打开'],
       ['inviteRequireRunning', '自动邀请的时机', '有任务运行才邀请', '空闲时也可邀请'],
-      ['inviteRequireNoUnread', '有未读完成提醒时', '看完提醒再邀请', '仍可弹出邀请']
+      ['inviteRequireNoUnread', '有未读完成提醒时', '暂不自动邀请', '照常自动邀请']
     ]
   },
   {
     title: '开局与继续',
     settings: [
-      ['modelRecommendation', '首次打开时怎么选游戏', '按最近对话标题推荐', '从勾选的游戏中随机',
-        '默认在本地随机选游戏。主动开启模型推荐后，仅在打开游戏时向 DSH 默认模型服务发送最近至多 10 个主对话标题（每条最多 64 个 UTF-16 代码单元），可能产生费用。最多等待 5 秒，超时或无标题时改为本地随机。'],
+      ['modelRecommendation', '模型推荐', '开局时按最近对话标题推荐', null,
+        '默认在本地随机选择游戏。开启后，首次开局如有多款可玩，会用 DSH 默认模型推荐。最多发送最近 10 个主对话标题（每条最多 64 个 UTF-16 代码单元），可能计费。等待最多 5 秒，没拿到推荐就随机。'],
       ['keepVisibleOnPause', '切回任务时', '保留画面，点鲸鱼娘继续', '收起画面，从标题栏继续'],
       ['keepOnRefresh', '刷新页面后', '保留本局', '下次打开从头开始', '当前对局仅在本次 DSH 运行期间保留。']
     ]
@@ -64,14 +64,19 @@ export function GameSettings({catalog, state, saving, error, onChange}) {
           }),
           h(GameIcon, {icon: game.icon}), game.name)
       )),
-      h('p', {className: 'braingames-setting-note'}, '仅从勾选的游戏中开新局。至少勾选两款，结算时才能切换游戏。'),
+      h('p', {className: 'braingames-setting-note'}, '仅从勾选的游戏中开始新局。至少勾选两款，结算时才能切换游戏。'),
       ...groups.map(group => h('div', {key: group.title, className: 'braingames-settings-group'},
         h('h4', null, group.title),
         ...group.settings.map(([field, label, on, off, note]) =>
           h('fieldset', {key: field, className: 'braingames-setting'},
             h('legend', null, label),
             h('div', {className: 'braingames-setting-options'},
-              ...[[true, on], [false, off]].map(([enabled, text]) =>
+              off === null ? h('label', null,
+                h('input', {
+                  type: 'checkbox', 'data-braingames-setting': field, checked: value[field] === true,
+                  onChange: event => { void onChange(field, event.target.checked); }
+                }), h('span', null, on)
+              ) : [[true, on], [false, off]].map(([enabled, text]) =>
                 h('label', {key: String(enabled)},
                   h('input', {
                     type: 'radio', name: 'braingames-' + field, value: String(enabled),

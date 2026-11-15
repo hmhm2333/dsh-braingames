@@ -96,19 +96,13 @@ export function apply(ctx){
       };
     },[sessionId]);
     const s=api.status(),active=s.resident?GAME_CATALOG.find(game=>game.id===s.gameId):null;
-    const canChoose=s.ready&&!s.loading&&!['playing','paused'].includes(s.view)&&s.enabledGameIds.length>1;
     const label=s.selecting?SHARED_COPY.selecting:s.loading||!s.ready&&!bootError?SHARED_COPY.loading:s.hasRound?SHARED_COPY.headerContinue:SHARED_COPY.headerStart;
-    const choices=GAME_CATALOG.filter(game=>s.enabledGameIds.includes(game.id)&&canFit(game));
     return h('div',{'data-braingames-task-entry':true,style:{position:'relative',display:'flex',alignItems:'center'}},
       s.mode==='foreground'?h('span',{'data-braingames-active':true,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',fontSize:13,opacity:.65}},h(GameIcon,{icon:active?.icon}),SHARED_COPY.headerPlaying):h('button',{'data-braingames-entry':true,type:'button',style:{...button,display:'flex',alignItems:'center',gap:6},
         disabled:s.loading||!s.ready&&!bootError||s.ready&&!s.canStart&&!s.hasRound,
         title:!s.canStart&&!s.hasRound?SHARED_COPY.noGames:active?.name??SHARED_COPY.appLabel,
         onClick:()=>{if(bootError){dismissErrors=false;refresh();}else run(()=>api.open());}},h(GameIcon,{icon:active?.icon}),label),
-      canChoose&&choices.length?h('select',{'data-braingames-select':true,'aria-label':SHARED_COPY.selectGame,value:'',style:{...button,marginLeft:4,maxWidth:118},
-        onChange:event=>{const gameId=event.target.value;if(gameId)run(()=>api.open({gameId}));}},
-        h('option',{value:''},SHARED_COPY.selectGame),
-        ...choices.map(game=>h('option',{key:game.id,value:game.id},game.name))):null,
-      s.presentation==='waiting'?h(PixelPopup,{'data-braingames-invitation':true,'aria-label':'BrainGames 邀请'},
+      s.presentation==='waiting'?h(PixelPopup,{'data-braingames-invitation':true,'aria-label':SHARED_COPY.inviteLabel},
         h('p',{className:'braingames-popup-message'},h(GameIcon),pixelLabel(hasRunning?SHARED_COPY.invite:SHARED_COPY.inviteIdle)),
         h('div',{className:'braingames-popup-actions'},
           h('button',{'data-braingames-accept':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(SHARED_COPY.inviteAccept)),
@@ -142,26 +136,21 @@ export function apply(ctx){
       return()=>{observer.disconnect();container=null;};
     },[]);
     const s=runtime.status(),error=bootError||openError||s.error;
-    const displayError=bootError?SHARED_COPY.bootError:s.selectionFailed?error:SHARED_COPY.loadedError;
+    const displayError=bootError?SHARED_COPY.bootError:SHARED_COPY.loadedError;
     const requirement=viewportFailure?.game.minimumSize;
-    const retryGameId=viewportFailure?.game.id;
     const retryFit=viewportFailure&&canFit(viewportFailure.game);
-    const fitChoices=viewportFailure&&!['playing','paused'].includes(s.view)?GAME_CATALOG.filter(game=>game.id!==retryGameId&&s.enabledGameIds.includes(game.id)&&canFit(game)):[];
     return h('div',{'data-braingames-overlay':true,style:{position:'absolute',inset:0,pointerEvents:'none',zIndex:9500}},
       h('style',null,hostUiCss),h('div',{ref,style:{position:'absolute',inset:0}}),
       viewportFailure?h(PixelPopup,{'data-braingames-error':true,'data-braingames-viewport':true,role:'alert'},
         h('p',{className:'braingames-popup-detail'},SHARED_COPY.viewportError.replace('{width}',requirement.width).replace('{height}',requirement.height)),
         h('div',{className:'braingames-popup-actions'},
-          retryFit?h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>api.open(s.gameId===retryGameId&&s.hasRound?undefined:{gameId:retryGameId}))},pixelLabel(SHARED_COPY.retry)):null,
-          ...fitChoices.map(game=>h('button',{key:game.id,'data-braingames-action':true,type:'button',onClick:()=>run(()=>api.open({gameId:game.id}))},game.name)),
+          retryFit?h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(SHARED_COPY.retry)):null,
           h('button',{'data-braingames-action':true,type:'button',onClick:()=>{viewportFailure=null;refresh();}},pixelLabel(SHARED_COPY.inviteDismiss)))):
       error&&!dismissErrors?h(PixelPopup,{'data-braingames-error':true,role:'alert'},
-        s.selectionFailed?h('p',{className:'braingames-popup-message'},pixelLabel(SHARED_COPY.chooseError)):null,
         h('p',{className:'braingames-popup-detail'},displayError),
         h('div',{className:'braingames-popup-actions'},
-          h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>bootError?(resumeError?api.discardSavedRound():api.retryBoot()):api.retrySelection())},
-            pixelLabel(bootError?(resumeError?SHARED_COPY.discardSavedRound:SHARED_COPY.retry):s.selectionFailed?SHARED_COPY.chooseRetry:SHARED_COPY.reload)),
-          !bootError&&s.selectionFailed?h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>api.retrySelection({random:true}))},pixelLabel(SHARED_COPY.chooseRandom)):null,
+          h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>bootError?(resumeError?api.discardSavedRound():api.retryBoot()):api.open())},
+            pixelLabel(bootError?(resumeError?SHARED_COPY.discardSavedRound:SHARED_COPY.retry):SHARED_COPY.reload)),
           h('button',{'data-braingames-action':true,type:'button',onClick:()=>{dismissErrors=true;refresh();}},pixelLabel(SHARED_COPY.inviteDismiss)))):null);
   }
   const runtime=createGameRuntime({games:GAME_CATALOG,canFit,enabledGameIds:[],autoInvite:false,onChange:refresh,onInputGuardChange:setGuard,
@@ -233,10 +222,9 @@ export function apply(ctx){
       }
       return result;
     },
-    retrySelection(options){return runtime.status().view==='finished'?runtime.random(options):api.open(options);},
     retryBoot(){api.ready=startBootstrap();return api.ready;},
     async discardSavedRound(){refreshStore.clear();runtime.abandonRestore();resumeError=false;bootError='';bootSettled=true;api.ready=Promise.resolve(true);return api.open();},
-    background:reason=>runtime.background(reason),random:options=>runtime.random(options)
+    background:reason=>runtime.background(reason),random:()=>runtime.random()
   };
   ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'braingames.overlay'},StageHost));
   ctx.slots.inject('conversation.session.header.utilities',()=>ctx.slots.register({name:'conversation.session.header.utilities',id:'braingames.runtime',order:-20},TaskEntry));

@@ -1,5 +1,6 @@
 import {ACTOR_SCALE, FISH_SCALE, POSE_MS, STARTING_LIVES, clamp, lerp} from './core.mjs';
 import {NET_CD_MS} from './difficulty.mjs';
+import {LOBBY_COMPANION_BASELINE, LOBBY_COMPANION_SIZE} from '../../runtime/presentation.mjs';
 
 const FISH_CENTER_OFFSET = 4;
 export const HIT_HALF_WIDTH = 48;
@@ -9,6 +10,16 @@ const NET_PIXELS = [
   '...#####...', '..#..#..#..', '.#.#.#.#.#.', '.#..#.#..#.', '..#######..',
   '.....#.....', '....#......', '...#.......', '..#........', '..#........',
 ];
+
+function drawLamp(ctx, x, y, lit) {
+  ctx.fillStyle = '#634638';
+  ctx.fillRect(x + 2, y, 6, 11);
+  ctx.fillRect(x, y + 2, 10, 7);
+  ctx.fillStyle = lit ? '#f9bd66' : '#776b58';
+  ctx.fillRect(x + 2, y + 2, 6, 7);
+  ctx.fillStyle = lit ? '#fff0a2' : '#8d8068';
+  ctx.fillRect(x + 3, y + 2, 4, 2);
+}
 
 export async function loadMotion({manifest, loadAtlas} = {}) {
   if (manifest) return {...manifest, image: await loadAtlas(manifest.image)};
@@ -31,7 +42,7 @@ function guideFrame(ctx, art, clip, index, x, y, maxWidth, maxHeight) {
     y - Math.round(height * scale / 2), Math.round(width * scale), Math.round(height * scale));
 }
 
-export function drawRuleArt(scoop, evolution, art) {
+export function drawRuleArt(scoop, evolution, loss, art) {
   const net = scoop.getContext('2d');
   net.imageSmoothingEnabled = false;
   guideFrame(net, art, 'scoop-right', art.contactFrame, 56, 31, 98, 58);
@@ -43,6 +54,10 @@ export function drawRuleArt(scoop, evolution, art) {
   change.fillRect(55, 28, 2, 8);
   change.fillRect(57, 30, 2, 4);
   guideFrame(change, art, 'evolve-right', -1, 87, 31, 47, 57);
+  const life = loss.getContext('2d');
+  life.fillStyle = '#634638';
+  life.fillRect(1, 9, 9, 2);
+  drawLamp(life, 15, 2, true);
 }
 
 export function hitsFish(fish, x, y) {
@@ -196,15 +211,7 @@ export class Scene {
       }
     }
     for (let index = 0; index < STARTING_LIVES; index++) {
-      const left = x + 26 + 14 * index;
-      const lit = index < school.lives;
-      ctx.fillStyle = '#634638';
-      ctx.fillRect(left + 2, y + 5, 6, 11);
-      ctx.fillRect(left, y + 7, 10, 7);
-      ctx.fillStyle = lit ? '#f9bd66' : '#776b58';
-      ctx.fillRect(left + 2, y + 7, 6, 7);
-      ctx.fillStyle = lit ? '#fff0a2' : '#8d8068';
-      ctx.fillRect(left + 3, y + 7, 4, 2);
+      drawLamp(ctx, x + 26 + 14 * index, y + 5, index < school.lives);
     }
     ctx.fillStyle = '#514335';
     ctx.fillRect(x + 6, y + 19, width - 12, 6);
@@ -270,8 +277,13 @@ export class Scene {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = false;
-    guideFrame(ctx, this.motion, finished ? 'react-ordinary-left' : 'idle-left', finished ? 6 : 0,
-      100, 100, 176, 176);
+    const clip = finished ? 'react-ordinary-left' : 'idle-left';
+    const index = finished ? 6 : 0;
+    const {offset, rect} = this.motion.clips[clip][index];
+    const scale = ACTOR_SCALE;
+    this.sprite(clip, index,
+      LOBBY_COMPANION_SIZE / 2 - (offset[0] + rect[2] / 2) * scale,
+      LOBBY_COMPANION_BASELINE - (offset[1] + rect[3]) * scale, scale, ctx);
   }
 
   draw(school, moving = false) {

@@ -62,7 +62,7 @@ export function mountGame(host,options={}){
   $('boat-hit').hidden=!playing;$('move-whale').hidden=!playing;
   $('start').disabled=!canReplay||small();$('replay').disabled=!canReplay||small();
   $('random').hidden=!options.onRandom;$('random').disabled=!canRandom||small();
-  $('lives').setAttribute('aria-label',copy.feedback.lives.replace('{lives}',session.lives));
+  $('lives').setAttribute('aria-label',SHARED_COPY.chancesLeft.replace('{lives}',session.lives));
   for(let i=0;i<MAX_LIVES;i++)$('lives').children[i].dataset.lost=String(i>=session.lives);
   // Controls keep ownership during recovery/animation. Ignored clicks must not
   // fall through to DSH merely because the current placement is still animating.
@@ -100,7 +100,7 @@ export function mountGame(host,options={}){
  function fail(error){
   if(disposed)return;stopAnswer(false);stop();errors.push(error.stack??String(error));console.error(error);session?.pause();
   if(!$('error')){root.replaceChildren();const panel=document.createElement('p');panel.setAttribute('role','alert');panel.textContent=SHARED_COPY.loadedError;root.append(panel);view='error';options.onViewChange?.(view);return;}
-  text('error-detail',SHARED_COPY.loadedError);setView('error');pixelText?.flush();
+  setView('error');pixelText?.flush();
  }
  function clampPosition(x,y){return navigation.clampPosition(x,y,width,height);}
  function voyagePosition(){return voyage?voyagePose(voyage):{...layout,heading};}
@@ -169,8 +169,11 @@ export function mountGame(host,options={}){
   const [markup,,font,whale]=await Promise.all([options.ui?options.ui.markup:fetch(new URL('./markup.html',import.meta.url)).then(r=>{if(!r.ok)throw Error('补船界面加载失败');return r.text();}),styleReady,face.load(),loadWhale(options)]);
   if(disposed){whale.image.close?.();return false;}
   document.fonts.add(font);root.innerHTML=markup;
-  applyCopy(root,{'#welcome .rules>div:first-child span':copy.rules[0],'#welcome .rules>div:last-child span':copy.rules[1],'#start':copy.start,'#result-lead':copy.resultLead,'#result .number>span':copy.resultUnit,'#result .best>span:first-child':copy.bestLabel,'#replay':copy.replay,'#random':SHARED_COPY.next,'#loading p':copy.loading,'#error p:first-child':copy.loadError,'#reload':SHARED_COPY.reload});
+  applyCopy(root,{'#welcome .rules>div:first-child span':copy.rules[0],'#welcome .rules>div:last-child span':copy.rules[1],
+    '#start':copy.start,'#result .number>span':copy.resultUnit,'#loading p':copy.loading});
   mountControlGuide(root,copy);
+  $('move-whale').title=SHARED_COPY.moveHint;
+  $('move-whale').setAttribute('aria-label',SHARED_COPY.moveHint);
   records=mountGameRecords(root,'#welcome','#result');
   session=new RepairSession();scene=new RepairScene($('scene'),whale,$('companion'),$('clock-occluder'));
   for(let i=0;i<MAX_LIVES;i++){
@@ -205,7 +208,7 @@ export function mountGame(host,options={}){
  function setFrozen(active){
   frozenVisible=active;frozenDragged=false;
   const button=$('move-whale');if(!button)return;
-  button.title=active?SHARED_COPY.freezeHint:'长按鲸鱼娘拖动';
+  button.title=active?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
   button.setAttribute('aria-label',button.title);
   button.tabIndex=active?0:-1;
  }
