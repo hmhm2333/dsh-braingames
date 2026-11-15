@@ -2,6 +2,8 @@
 
 <h1>dsh-braingames</h1>
 
+<p>等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。</p>
+
 <p>
   <a href="#安装"><img src="assets/readme/badge-dsh.svg" alt="DeepSeek Harness 0.2.2-rc.1" /></a>
   <a href="https://github.com/hmhm2333/dsh-braingames/blob/HEAD/LICENSE.txt"><img src="assets/readme/badge-mit.svg" alt="MIT License" /></a>
@@ -17,8 +19,6 @@
 </p>
 
 </div>
-
-等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。
 
 **Agent 跑任务 → 做几轮练习 → 切回工作时收起游戏 → 下个空档继续。** 游戏叠在 DSH 的透明舞台上，点击空白处仍能操作工作区。
 

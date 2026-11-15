@@ -10,7 +10,8 @@
   "exports": {
     ".": "./host.mjs",
     "./client": "./lib/client.js",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
   },
   "files": [
     "host.mjs",
