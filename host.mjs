@@ -10,7 +10,7 @@ export const Config=Schema.object({
   autoInvite:Schema.boolean().default(true).volatile(),
   inviteRequireRunning:Schema.boolean().default(true).volatile(),
   inviteRequireNoUnread:Schema.boolean().default(true).volatile(),
-  keepVisibleOnPause:Schema.boolean().default(true).volatile(),
+  keepVisibleOnPause:Schema.boolean().default(false).volatile(),
   keepOnRefresh:Schema.boolean().default(true).volatile(),
   modelRecommendation:Schema.boolean().default(false).volatile()
 });
