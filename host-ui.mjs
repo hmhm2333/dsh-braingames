@@ -1,6 +1,7 @@
 import React from 'react';
 import {createPixelText} from './runtime/pixel-text.mjs';
 import {gameIconUrl} from './runtime/game-icons.mjs';
+import {SHARED_COPY} from './runtime/game-catalog.mjs';
 
 const h = React.createElement;
 
@@ -27,16 +28,16 @@ const groups = [
     settings: [
       ['autoInvite', '游戏邀请', '自动弹出邀请', '只从任务标题栏打开'],
       ['inviteRequireRunning', '自动邀请的时机', '有任务运行才邀请', '空闲时也可邀请'],
-      ['inviteRequireNoUnread', '有未读完成提醒时', '看完提醒再邀请', '仍可弹出邀请']
+      ['inviteRequireNoUnread', '有未读完成提醒时', '暂不自动邀请', '照常自动邀请']
     ]
   },
   {
     title: '开局与继续',
     settings: [
-      ['recommendByTask', '首次打开时怎么选游戏', '按最近对话标题推荐', '从勾选的游戏中随机',
-        '启动后用默认模型预选一次，最多发送最近 10 个对话标题，可能产生模型费用。开局最多等 5 秒，超时就用预选结果。没有标题时随机。'],
+      ['modelRecommendation', '模型推荐', '开局时按最近对话标题推荐', null,
+        '默认在本地随机选择游戏。开启后，首次开局如有多款可玩，会用 DSH 默认模型推荐。最多发送最近 10 个主对话标题（每条最多 64 个 UTF-16 代码单元），可能计费。等待最多 5 秒，没拿到推荐就随机。'],
       ['keepVisibleOnPause', '切回任务时', '保留画面，点鲸鱼娘继续', '收起画面，从标题栏继续'],
-      ['keepOnRefresh', '刷新页面后', '保留本局', '下次打开从头开始', '仅在同一次 DSH 运行中保留本局。']
+      ['keepOnRefresh', '刷新页面后', '保留本局', '下次打开从头开始', '当前对局仅在本次 DSH 运行期间保留。']
     ]
   }
 ];
@@ -45,11 +46,12 @@ export const SETTINGS_FIELDS = groups.flatMap(group => group.settings.map(([fiel
 export function GameSettings({catalog, state, saving, error, onChange}) {
   const {value, writable} = state;
   if (state.status !== 'ready') {
-    return h('p', {role: 'status'}, state.status === 'loading' ? '设置加载中…' : 'BrainGames 设置不可用。');
+    return h('p', {role: 'status'}, state.status === 'loading' ? '设置加载中…' : 'dsh-braingames 设置不可用。');
   }
   return h('section', {'data-braingames-settings': true},
     h('fieldset', {className: 'braingames-settings-form', disabled: !writable || saving},
       h('legend', null, '游戏设置'),
+      h('p', {className: 'braingames-setting-note'}, SHARED_COPY.openingGuide),
       h('h4', null, '游戏池'),
       h('div', {className: 'braingames-game-pool'}, ...catalog.map(game =>
         h('label', {key: game.id},
@@ -62,14 +64,19 @@ export function GameSettings({catalog, state, saving, error, onChange}) {
           }),
           h(GameIcon, {icon: game.icon}), game.name)
       )),
-      h('p', {className: 'braingames-setting-note'}, '勾选的游戏才会开新局。至少选两款，结算时才能换一款。'),
+      h('p', {className: 'braingames-setting-note'}, '仅从勾选的游戏中开始新局。至少勾选两款，结算时才能切换游戏。'),
       ...groups.map(group => h('div', {key: group.title, className: 'braingames-settings-group'},
         h('h4', null, group.title),
         ...group.settings.map(([field, label, on, off, note]) =>
           h('fieldset', {key: field, className: 'braingames-setting'},
             h('legend', null, label),
             h('div', {className: 'braingames-setting-options'},
-              ...[[true, on], [false, off]].map(([enabled, text]) =>
+              off === null ? h('label', null,
+                h('input', {
+                  type: 'checkbox', 'data-braingames-setting': field, checked: value[field] === true,
+                  onChange: event => { void onChange(field, event.target.checked); }
+                }), h('span', null, on)
+              ) : [[true, on], [false, off]].map(([enabled, text]) =>
                 h('label', {key: String(enabled)},
                   h('input', {
                     type: 'radio', name: 'braingames-' + field, value: String(enabled),
@@ -84,7 +91,7 @@ export function GameSettings({catalog, state, saving, error, onChange}) {
       ))
     ),
     saving ? h('p', {role: 'status'}, '保存中…') : null,
-    !writable ? h('p', {role: 'status'}, '当前设置为只读。') : null,
+    !writable ? h('p', {role: 'status'}, '当前设置为只读状态。') : null,
     error ? h('p', {role: 'alert', className: 'braingames-settings-error'}, error) : null
   );
 }

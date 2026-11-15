@@ -1,4 +1,4 @@
-import {VERDICT_CROSS} from '../../runtime/presentation.mjs';
+import {LOBBY_COMPANION_BASELINE, LOBBY_COMPANION_SIZE, VERDICT_CROSS} from '../../runtime/presentation.mjs';
 import {ROUND_MS} from './difficulty.mjs';
 
 const ART_URL = new URL('./assets/motion.json', import.meta.url);
@@ -103,7 +103,7 @@ export function drawRuleArt(add, subtract, art) {
     ctx.font = 'bold 12px monospace';
     ctx.fillText(wind, 56, 27);
 
-    if (direction < 0) sprite(ctx, art.atlas, art.layers.star[0], {x: 25, y: 39}, {scaleX: .55, scaleY: .55});
+    sprite(ctx, art.atlas, art.layers.star[0], {x: direction < 0 ? 25 : 87, y: 39}, {scaleX: .55, scaleY: .55});
     ctx.fillStyle = '#42332e';
     ctx.font = 'bold 11px monospace';
     ctx.fillText(left, 25, 57);
@@ -270,8 +270,8 @@ export function makeScene(canvas, art) {
       const paint = companion.getContext('2d');
       paint.imageSmoothingEnabled = false;
       paint.clearRect(0, 0, companion.width, companion.height);
-      const point = {x: 100, y: 171};
       const pose = finished ? art.layers.collect.find(cell => cell.frame === 31) : stand;
+      const point = {x: LOBBY_COMPANION_SIZE / 2, y: LOBBY_COMPANION_BASELINE - pose.rect[3] - Math.round(pose.offset[1])};
       sprite(paint, art.atlas, pose, point);
       if (finished) sprite(paint, art.atlas, star,
         {x: point.x + pose.palm[0], y: point.y + pose.palm[1]}, {scaleX: .72, scaleY: .72});

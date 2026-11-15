@@ -1,4 +1,5 @@
-const even=n=>Math.round(n/2)*2;
+import {LOBBY_CARD_WIDTH,LOBBY_COMPANION_SIZE,LOBBY_COMPANION_OFFSET_Y} from '../../runtime/presentation.mjs';
+
 export const ARRIVAL_TURN_MS=160;
 export const DEPARTURE_TURN_MS=160;
 export const STEP_IN_MS=180;
@@ -21,10 +22,11 @@ export function viewportLayout(width,height,mealCount=4,anchor=null){
   const offset=anchor?[Math.round(anchor[0]-heroX),Math.round(anchor[1]-ground)]:[0,0];
   const menu={left:Math.round((width-menuWidth)/2)+offset[0],top:ground+gap+offset[1],width:menuWidth,height:menuHeight,...grid};
   const hudLeft=Math.round(heroX-MENU_COLUMN_STEP-1)+offset[0];
-  const panelWidth=280,companionWidth=200;
-  const panelLeft=Math.max(margin,(width-panelWidth-companionWidth)/2);
-  return{width,height,pixelScale,fontSize:18,lineHeight:24,menu,hudLeft,companionWidth,offset,
-    panel:{left:even(panelLeft)+offset[0],width:panelWidth},
+  const panelWidth=LOBBY_CARD_WIDTH,companionWidth=LOBBY_COMPANION_SIZE;
+  const panelLeft=Math.max(margin,(width-panelWidth-companionWidth)/2)+offset[0];
+  const lobbyAnchor=[Math.round(panelLeft+panelWidth+companionWidth/2),Math.round(height/2+offset[1]+LOBBY_COMPANION_OFFSET_Y)];
+  return{width,height,pixelScale,fontSize:18,lineHeight:24,menu,hudLeft,companionWidth,offset,lobbyAnchor,
+    panel:{left:panelLeft,width:panelWidth},
     scene:{width:Math.ceil(width/pixelScale),height:Math.ceil(height/pixelScale),whale:[heroX+offset[0],ground+offset[1]],controls:{left:menu.left,top:menu.top,width:menu.width,height:menu.height}}};
 }
 export function orderCueRect(layout,motion){

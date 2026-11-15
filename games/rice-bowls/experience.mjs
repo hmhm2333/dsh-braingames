@@ -5,7 +5,8 @@ const copy=GAME_COPY['regulars-g04'];
 import {RegularsSession,MAX_MISTAKES,RESPONSE_MS} from './regulars-core.mjs';
 import {ServiceScene,loadSprites,guestName,mealName} from './service-scene.mjs';
 import {menuSlot,orderCueRect,viewportLayout} from './layout.mjs';
-import {readPlacement,savePlacement,placementBounds,clampAnchor} from './placement.mjs';
+import {PLACEMENT_KEY,placementBounds,clampAnchor} from './placement.mjs';
+import {mountGameRecords} from '../../runtime/game-records.mjs';
 import {createMoveHandle} from '../../runtime/move-handle.mjs';
 import {createDragPreview,previewRect} from './drag-preview.mjs';
 import {createPixelText} from '../../runtime/pixel-text.mjs';
@@ -24,7 +25,7 @@ export function mountGame(host,options={}){
   let presented=options.presented!==false,ready=false,lastView=null,menuKey='',canReplay=options.canReplay!==false,canRandom=options.canRandom===true;
   const errors=[];
   const bestKey='braingames.g04.bestCustomers.v1';
-  let bestCustomers=0,recoveryUntil=0;
+  let bestCustomers=0,recoveryUntil=0,records;
   const mealUrl=id=>options.ui?options.ui.mealImages[id]:new URL('./assets/'+sprites.manifest.mealImages[id],import.meta.url).href;
 let frozenVisible=false,frozenDragged=false,session,sprites,scene,pixelText,timer=null,raf=null,lastWall=null,disposed=false,uiKey='',pointer=null,announcedVisit=0;
 let preferredPlacement=null,dragAnchor=null,dragOrigin=null,relocating=false,dragPreview=false,moveFrame=null,moveGesture=null,dragSurface=null,placementGeometry=null,dragGeometry=null,sessionSeed=0,layoutPhase=null,handleKey='';
@@ -33,8 +34,8 @@ const seed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
 function on(target,event,fn,options){target.addEventListener(event,fn,options);listeners.push(()=>target.removeEventListener(event,fn,options));}
 function canvas(w,h,label){const c=document.createElement('canvas');c.width=w;c.height=h;c.setAttribute('role','img');c.setAttribute('aria-label',label);return c;}
 function textLabel(text){const span=document.createElement('span');span.dataset.pixelText='';span.textContent=text;return span;}
-function mealImage(id,label=''){
-  const img=document.createElement('img');img.src=mealUrl(id);img.alt=label;img.draggable=false;return img;
+function mealImage(id){
+  const img=document.createElement('img');img.src=mealUrl(id);img.alt='';img.draggable=false;return img;
 }
 function fitStage(){
   const width=root.clientWidth,height=root.clientHeight,count=session?.activeMeals.length??4,base=viewportLayout(width,height,count),phase=session?.phase??'welcome';
@@ -50,9 +51,9 @@ function stop(){if(timer!==null)clearTimeout(timer);if(raf!==null)cancelAnimatio
 function showError(error){
   console.error(error);errors.push(error.message);stop();cancelMoveFrame();dragSurface?.end();moveGesture?.cancel();root.dataset.phase='error';pixelText?.suspend();
   const box=document.createElement('section');box.className='window status-dialog';box.setAttribute('role','alert');
-  const title=textLabel(copy.loadError),text=document.createElement('p'),reload=document.createElement('button');
-  text.id='error-detail';text.textContent=error.message;reload.id='reload';reload.className='primary';reload.append(textLabel(SHARED_COPY.reload));
-  on(reload,'click',()=>{void options.onReload().catch(showError);});box.append(title,text,reload);
+  const title=textLabel(SHARED_COPY.loadedError),reload=document.createElement('button');
+  reload.id='reload';reload.className='primary';reload.append(textLabel(SHARED_COPY.reload));
+  on(reload,'click',()=>{void options.onReload().catch(showError);});box.append(title,reload);
   root.replaceChildren(box);pixelText?.present();pixelText?.flush();reload.focus({preventScroll:true});options.onViewChange?.('error');
 }
 function token(){return`${session.phase}:${session.visit?.id}:${session.canSelect()}`;}
@@ -70,37 +71,45 @@ function updateResponse(){
 }
 function updateUI(force=false){
   syncMenu();updateResponse();
-  const showName=!!session.arrival&&!session.arrival.choice&&session.arrival.elapsedMs<GUEST_NAME_MS;
+  const showName=!!session.arrival&&session.arrival.elapsedMs<GUEST_NAME_MS;
   const key=`${session.phase}:${session.revision}:${showName}`;if(!force&&key===uiKey)return;uiKey=key;const s=session.snapshot();if(frozenVisible&&s.phase==='paused')s.phase='running';
   root.dataset.phase=s.phase;
   for(const id of ['welcome','summary','loading'])$(id).hidden=id!==s.phase;
-  if(layoutPhase!==s.phase){layoutPhase=s.phase;fitStage();}
+  const phaseChanged=layoutPhase!==s.phase;
+  if(phaseChanged){layoutPhase=s.phase;fitStage();}
+  const handle=$('move-whale'),moveHint=frozenVisible?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
+  handle.setAttribute('aria-label',moveHint);handle.title=moveHint;
   $('menu').hidden=s.phase!=='running';
   $('lives').hidden=s.phase!=='running';
-  $('lives').setAttribute('aria-label',`还能失误 ${s.lives} 次`);
+  $('lives').setAttribute('aria-label',SHARED_COPY.chancesLeft.replace('{lives}',s.lives));
   if(s.service&&s.service.outcome.visitId!==announcedVisit){
     const out=s.service.outcome;announcedVisit=out.visitId;
-    const tail=s.lives?`还能失误 ${s.lives} 次。`:`已累计失误 ${MAX_MISTAKES} 次，这位离开后就休息。`;
-    $('announcement').textContent=out.reason==='timeout'?`这一单没赶上，客人空手离开。${tail}`:out.correct?`给${guestName(out.guest)}的菜上对了。`:`${guestName(out.guest)}拒收了这份菜。${tail}`;
+    const {feedback}=copy,guest=guestName(out.guest);
+    const tail=s.lives?SHARED_COPY.chancesLeft.replace('{lives}',s.lives):feedback.last.replace('{max}',MAX_MISTAKES);
+    $('announcement').textContent=out.reason==='timeout'?feedback.timeout+tail:out.correct?feedback.correct.replace('{guest}',guest):feedback.wrong.replace('{guest}',guest)+tail;
   }
   for(const [i,heart] of [...$('lives').children].entries())heart.dataset.lost=String(i>=s.lives);
   // An occupied menu slot keeps the click inside the game even while a dish is being served.
-  const selected=s.arrival?.choice??s.service?.outcome.chosen;
+  const selected=s.service?.outcome.chosen;
   for(const button of $('menu').children){
     button.disabled=relocating||session.phase!=='running';
     button.setAttribute('aria-disabled',String(!s.canSelect||button.disabled));
     button.dataset.selected=String(selected===button.dataset.meal);
   }
-  const showMeal=s.visit?.hinted&&!s.service&&!s.finishRequested&&!s.arrival?.choice;
+  const showMeal=s.visit?.hinted&&!s.service&&!s.finishRequested;
   const order=s.phase==='running'&&(showName||showMeal)?s.visit:null;
   $('order').hidden=!order;
   if(order){
     const name=guestName(order.guest);
     $('order').setAttribute('aria-label',showMeal?`${name}要${mealName(order.meal)}`:name);
     $('order').dataset.kind=order.kind;
-    $('order-caption').hidden=!showName;$('order-caption').textContent=showName?name:'';
+    const caption=$('order-caption');
+    caption.style.visibility=showName?'visible':'hidden';
+    if(caption.textContent!==name)caption.textContent=name;
     $('order-icon').hidden=!showMeal;$('order-label').textContent=showMeal?mealName(order.meal):'';
-    if(showMeal)$('order-icon').src=mealUrl(order.meal);else $('order-icon').removeAttribute('src');
+    const icon=$('order-icon');
+    if(showMeal){const url=mealUrl(order.meal);if(icon.getAttribute('src')!==url)icon.src=url;}
+    else icon.removeAttribute('src');
     const cue=orderCueRect(scene.layout,order.motion);
     for(const [name,value] of Object.entries(cue))$('order').style.setProperty('--order-'+name,value+'px');
   }else{$('order').removeAttribute('aria-label');$('order-label').textContent='';$('order-icon').removeAttribute('src');}
@@ -109,18 +118,11 @@ function updateUI(force=false){
   if(front){$('front-name').textContent=`先给${guestName(front)}`;$('menu').setAttribute('aria-label',`给${guestName(front)}上菜`);}
   else $('menu').setAttribute('aria-label','选一份，上菜');
   if(s.phase==='summary'){
+    if(phaseChanged&&presented&&canReplay)$('replay').focus({preventScroll:true});
     const customers=s.stats.customersServed;
-    if(customers>bestCustomers){bestCustomers=customers;if(!options.qa)localStorage.setItem(bestKey,String(bestCustomers));}
+    if(customers>bestCustomers)bestCustomers=options.qa?customers:records.saveScore(bestKey,customers);
     $('customer-value').textContent=customers;$('best-value').textContent=bestCustomers;
   }
-  if(s.phase==='welcome'||s.phase==='summary'){
-    fitStage();
-  }
-}
-function positionLobby(){
-  if(!['welcome','summary'].includes(session.phase))return;
-  const panel=$(session.phase).getBoundingClientRect(),stage=root.getBoundingClientRect(),v=scene.viewport;
-  scene.lobbyRoot=[panel.right-stage.left+v.companionWidth/2,panel.bottom-stage.top-8];
 }
 function syncMoveHandle(){
   const button=$('move-whale');button.hidden=!['welcome','running','summary',...(frozenVisible?['paused']:[])].includes(session.phase)||!!errors.length;
@@ -128,7 +130,7 @@ function syncMoveHandle(){
   const box=scene.dragBounds(session,dragPreview),key=Object.values(box).join(':');if(key===handleKey)return;handleKey=key;
   for(const [name,value]of Object.entries(box))button.style[name]=value+'px';
 }
-function draw(){positionLobby();scene.draw(session,{moving:dragPreview});syncMoveHandle();const view=runView();if(view!==lastView){lastView=view;options.onViewChange?.(view);}}
+function draw(){scene.draw(session,{moving:dragPreview});syncMoveHandle();const view=runView();if(view!==lastView){lastView=view;options.onViewChange?.(view);}}
 function runView(){return errors.length?'error':session?.phase==='running'?'playing':session?.phase==='summary'?'finished':session?.phase==='paused'?'paused':session?.phase??'loading';}
 function schedule(){
   if(disposed||!presented||relocating||!playableSize(root.clientWidth,root.clientHeight)||session.phase!=='running')return;
@@ -169,7 +171,8 @@ function finishMoving(active,dx,dy){
   if(active){
     dragAnchor=[dragOrigin[0]+dx,dragOrigin[1]+dy];fitStage();const anchor=[...scene.layout.whale];
     if(anchor.some((value,i)=>value!==dragOrigin[i])){
-      preferredPlacement=savePlacement(localStorage,anchor,root.clientWidth,root.clientHeight);
+      preferredPlacement={x:anchor[0]/root.clientWidth,y:anchor[1]/root.clientHeight};
+      records.savePosition(PLACEMENT_KEY,preferredPlacement);
       repositionVisit();
     }
   }
@@ -189,8 +192,9 @@ function syncMenu(){
   $('menu').replaceChildren();
   const slots=session.activeMeals.map((id,index)=>({id,...menuSlot(index)})).sort((a,b)=>a.row-b.row||a.column-b.column);
   for(const {id,row,column} of slots){
-    const button=document.createElement('button');button.className='meal-choice';button.dataset.meal=id;button.dataset.gameControl='';button.setAttribute('aria-label',mealName(id));button.style.gridRow=String(row);button.style.gridColumn=String(column);
-    button.append(mealImage(id,mealName(id)),textLabel(mealName(id)));$('menu').append(button);
+    const button=document.createElement('button');button.className='meal-choice';button.dataset.meal=id;button.dataset.gameControl='';button.style.gridRow=String(row);button.style.gridColumn=String(column);
+    button.title=mealName(id);button.setAttribute('aria-label',button.title);
+    button.append(mealImage(id));$('menu').append(button);
   }
   fitStage();
 }
@@ -198,14 +202,17 @@ function availability(){if(!session)return;const small=!playableSize(root.client
 async function init(){
   const markup=options.ui?options.ui.markup:await (async()=>{const response=await fetch(new URL('./service-markup.html',import.meta.url));if(!response.ok)throw Error('游戏界面加载失败 ('+response.status+')');return response.text();})();
   root.innerHTML=markup;
-  applyCopy(root,{'#welcome .rule:first-child>span':copy.rules[0],'#welcome .rule:last-child>span':copy.rules[1],'#start span':copy.start,'#result-lead':copy.resultLead,'#summary .customer-result>span':copy.resultUnit,'#summary .best-result>span:first-child':copy.bestLabel,'#replay span':copy.replay,'#random span':SHARED_COPY.next,'#loading p':copy.loading,'#error p:first-child':copy.loadError,'#reload span':SHARED_COPY.reload});
+  applyCopy(root,{'#welcome .rule:first-child>span':copy.rules[0],'#welcome .rule:last-child>span':copy.rules[1],
+    '#order-rules-access':copy.ruleAccess,'#start span':copy.start,'#score-label':copy.scoreLabel,
+    '#result-unit':copy.resultUnit,'#best-unit':copy.resultUnit,'#loading p':copy.loading});
   mountControlGuide(root,copy);
+  records=mountGameRecords(root,'#welcome .window-body','#summary .window-body');
   await styleReady;await pixelFace.load();document.fonts.add(pixelFace);pixelText=createPixelText(root);
   sprites=await loadSprites({manifest:options.manifest,loadAtlas:options.loadAtlas});
   if(disposed)return false;
-  preferredPlacement=readPlacement(localStorage);scene=new ServiceScene($('scene'),sprites);fitStage();session=createSession(params.has('seed')?Number(params.get('seed')):seed());
+  preferredPlacement=records.readPosition(PLACEMENT_KEY);scene=new ServiceScene($('scene'),sprites);fitStage();session=createSession(params.has('seed')?Number(params.get('seed')):seed());
   if(options.checkpoint){const saved=options.checkpoint;if(saved.version!==1)throw Error('Invalid G04 experience checkpoint');sessionSeed=saved.seed;preferredPlacement=saved.placement;announcedVisit=saved.announcedVisit;session=RegularsSession.restore(saved.session,{seed:sessionSeed,guestIds:Object.keys(sprites.manifest.guests),planMotion:visit=>scene.planMotion(visit,sessionSeed)});if(session.phase==='running')session.pause('refresh');fitStage();if(saved.viewport.width!==root.clientWidth||saved.viewport.height!==root.clientHeight)repositionVisit();}
-  if(!options.qa){const saved=localStorage.getItem(bestKey);if(saved!==null){bestCustomers=Number(saved);if(!Number.isSafeInteger(bestCustomers)||bestCustomers<0)throw Error('最佳记录数据无效');}}
+  if(!options.qa)bestCustomers=records.readScore(bestKey);
   syncMenu();
   await Promise.all([...$('menu').querySelectorAll('img')].map(img=>img.decode()));
   const tutorial=Object.values(sprites.manifest.guests)[0];
@@ -224,7 +231,6 @@ async function init(){
   on($('menu'),'click',event=>{const button=event.target.closest('button[data-meal]');if(button)serve(button.dataset.meal);});
   on($('replay'),'click',replay);
   on($('random'),'click',()=>{if(canRandom)void options.onRandom().catch(showError);});
-  on($('reload'),'click',()=>{void options.onReload().catch(showError);});
   on(shadow,'pointerdown',event=>{
     if(event.button!==0)return;const button=event.target.closest('[data-game-control]');
     pointer=button&&root.contains(button)?{id:event.pointerId,button,token:button.dataset.meal?token():null,allow:false}:null;
@@ -258,7 +264,13 @@ async function present({resume:continueRound=true,start=false}={}){
   availability();run();if(resuming)recover();return true;
 }
 function checkpoint(){if(!ready||errors.length)return null;return{version:1,seed:sessionSeed,session:session.checkpoint(),placement:preferredPlacement,announcedVisit,viewport:{width:root.clientWidth,height:root.clientHeight}};}
-function setFrozen(active){frozenVisible=active;frozenDragged=false;}
+function setFrozen(active){
+  frozenVisible=active;frozenDragged=false;
+  const button=$('move-whale');if(!button)return;
+  button.title=active?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
+  button.setAttribute('aria-label',button.title);
+  button.tabIndex=active?0:-1;
+}
 function snapshot(){return{view:runView(),ready,disposed,presented,relocating,dragPreview,recovering:recoveryUntil!==0,viewportBlocked:!playableSize(root.clientWidth,root.clientHeight),session:session?.snapshot()??null,scene:scene?{drawCount:scene.drawCount,anchor:[...scene.layout.whale]}:null,rafPending:raf!==null||moveFrame!==null,timerPending:timer!==null,errors:[...errors]};}
 async function dispose(){if(disposed)return;disposed=true;presented=false;stop();cancelMoveFrame();moveGesture?.cancel();await initialization;moveGesture?.dispose();for(const remove of listeners)remove();pixelText?.dispose();sprites?.image.close?.();document.fonts.delete(pixelFace);root.remove();style.remove();}
 const initialization=init().catch(error=>{showError(error);return false;});

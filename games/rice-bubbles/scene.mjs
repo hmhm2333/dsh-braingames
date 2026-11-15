@@ -4,6 +4,7 @@ import {PixelFeedback,reactionCue} from './pixel-feedback.mjs';
 import {MEAL_PRESENTATION} from './core.mjs';
 import {clamp,sourceGeometry,makePlayfield,dropPoint,selectedPoint,floorImpactTime,planIntercept,reflowIntercept,interceptPose} from './chase-motion.mjs';
 import {FEEDBACK_MS,PICKUP_MS,IMPACT_MS,RICE_GRAB_MS,RICE_HIT_MS,riceSourceTime,outcomeTiming} from './outcome-timing.mjs';
+import {LOBBY_CARD_WIDTH,LOBBY_COMPANION_OFFSET_Y} from '../../runtime/presentation.mjs';
 
 export class WhaleScene{
   constructor(host,{assetsBase=new URL('./assets/g10/',import.meta.url),manifest=null,loadAtlas=null,bounds=()=>({width:innerWidth,height:innerHeight})}={}){
@@ -47,7 +48,13 @@ export class WhaleScene{
     this.field=makePlayfield({width:this.width,height:this.height,scale:this.scale,...this.geometry});
     Object.assign(this.host.style,{width:this.width+'px',height:this.height+'px',top:'0px',left:'0px',bottom:'auto',transform:'none'});this.app.renderer.resize(this.width,this.height);
     const rect=this.field.actor,reproject=p=>{const a=previous.actor;return[rect.left+clamp((p[0]-a.left)/(a.right-a.left),0,1)*(rect.right-rect.left),rect.top+clamp((p[1]-a.top)/(a.bottom-a.top),0,1)*(rect.bottom-rect.top)];};
-    if(view==='welcome'||view==='finished')this.base=[clamp(this.width/2+(this.width>900?180:140),rect.left,rect.right),rect.bottom-8*this.scale];
+    if(view==='welcome'||view==='finished'){
+      const bottom=this.height-12-this.geometry.extents.bottom*this.scale;
+      this.base=[
+        Math.round(clamp((this.width+LOBBY_CARD_WIDTH)/2,rect.left,rect.right)),
+        Math.round(clamp(this.height/2+LOBBY_COMPANION_OFFSET_Y,rect.top,bottom))
+      ];
+    }
     else if(this.resetPosition||!oldBase)this.base=[this.width/2,Math.max(rect.top,rect.bottom-56*this.scale)];
     else this.base=reproject(oldBase);
     if(this.chase&&previous){
@@ -76,7 +83,6 @@ export class WhaleScene{
     this.resetPosition=false;return this.layoutSnapshot();
   }
   layoutSnapshot(){return{width:this.width,height:this.height,scale:this.scale,anchor:[...this.base],screenLeft:0,screenTop:0,controlsAnchor:[this.width-52,this.height-48],dropBounds:{left:this.field.left,right:this.field.right,top:this.field.top,bottom:this.field.bottom},actorBounds:{...this.field.actor}};}
-  placeMenuAvatar(x,y){const r=this.field.actor,bottom=this.height-12-this.geometry.extents.bottom*this.scale;this.base=[Math.round(clamp(x,r.left,r.right)),Math.round(clamp(y,r.top,bottom))];}
   clip(id){const c=this.clips.get(id);if(!c)throw Error('缺少角色动作 '+id);return c;}
   play(id,at,durationMs=this.clip(id).durationMs){
     const clip=this.clip(id);this.active={clip,start:at,durationMs};

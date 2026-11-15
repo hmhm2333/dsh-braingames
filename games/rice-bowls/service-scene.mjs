@@ -121,7 +121,7 @@ export class ServiceScene{
   }
 
   whaleFor(s,moving=false){
-    const pose=moving?{clip:'idle',ms:0}:this.whalePresentation(s),root=['welcome','summary'].includes(s.phase)?this.lobbyRoot:this.layout.whale;
+    const pose=moving?{clip:'idle',ms:0}:this.whalePresentation(s),root=['welcome','summary'].includes(s.phase)?this.viewport.lobbyAnchor:this.layout.whale;
     return this.whaleGeometry(pose.clip,pose.ms,root);
   }
   dragBounds(s,moving=false){

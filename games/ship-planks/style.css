@@ -16,16 +16,14 @@
 .heart-edge{fill:#795b53}.heart-fill{fill:#c77c6c}.heart-glint{fill:#ffe9cc}
 [data-lost='true'] .heart-edge{fill:#8e9084}[data-lost='true'] .heart-fill{fill:#f6f0dd}[data-lost='true'] .heart-glint{fill:transparent}
 #move-whale{left:98px;top:92px;width:64px;height:84px;transform:rotate(calc(-1 * var(--heading)));transform-origin:32px 84px}
-.paper{z-index:4;top:50%;transform:translateY(-50%);padding:20px}
+.paper{z-index:4;padding:20px}
 .primary{min-height:42px;padding:7px 12px;clip-path:polygon(0 4px,2px 4px,2px 2px,4px 2px,4px 0,calc(100% - 4px) 0,calc(100% - 4px) 2px,calc(100% - 2px) 2px,calc(100% - 2px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 2px) calc(100% - 4px),calc(100% - 2px) calc(100% - 2px),calc(100% - 4px) calc(100% - 2px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 2px),2px calc(100% - 2px),2px calc(100% - 4px),0 calc(100% - 4px))}
 .secondary{min-height:36px;padding:4px 8px}.actions{gap:8px}
-.rules{margin:0 0 20px;padding:4px 0 8px}.rules>div{gap:12px}
+.rules{margin:0 0 20px;padding:4px 0 8px}.rules>div{gap:12px;font-size:15px;line-height:21px}
 .number{padding:12px 0 16px}.best{padding:12px 0 16px}
 .stage[data-viewport-blocked='true'] .leak-drop{animation-play-state:paused}
-.lobby{position:absolute;left:50%;top:50%;width:480px;height:280px;transform:translate(-50%,-50%);pointer-events:none}
-.lobby .paper{left:0}.lobby .status{left:100px}
+#error .primary{margin-top:12px}
 #result-lead{text-align:center;color:var(--muted)}
-#companion{position:absolute;left:280px;top:40px;width:200px;height:200px;pointer-events:none}
 .stage[data-view='loading'] #companion,.stage[data-view='error'] #companion{display:none}
 .stage[data-urgent='true'] .leak-drop{background:#d4a36b;animation-duration:.45s}
 #mast-clock{position:absolute;left:168px;top:108px;width:64px;height:36px;pointer-events:none;overflow:visible;opacity:0}
