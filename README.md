@@ -25,13 +25,13 @@
 <p align="center">
   <img src="assets/readme/workspace.webp" alt="dsh-braingames 在 DeepSeek Harness 中的界面" width="900" />
   <br />
-  <sub>DeepSeek Harness 实机画面 · 大肥鱼热气球</sub>
+  <sub>DeepSeek Harness 实机画面 · 开发会话示例中的大肥鱼热气球</sub>
 </p>
 
 ## 游戏与训练目标
 
 <p align="center">
-  <img src="assets/readme/gameplay.webp" alt="吃白饭吐泡泡、大肥鱼茶餐厅、忒修斯之渔船和大肥鱼热气球的实机画面" width="900" />
+  <img src="assets/readme/gameplay.webp" alt="吃白饭吐泡泡、大肥鱼茶餐厅、忒修斯之渔船、大肥鱼热气球和快逮住小金鱼的游戏画面" width="900" />
 </p>
 
 | 游戏 | 主要认知能力 | 几分钟里反复做什么 |
@@ -94,10 +94,12 @@ Git 安装使用仓内已构建的 `lib/`。本地构建更新源码后应重新
 
 ## 我是谁
 
-- 我是哼哼。我曾在一家<strong>头部教育科技公司</strong>为 3 到 12 岁儿童设计认知训练。相关训练在一线教育教学产品中覆盖了大量学生，也为面向人大附早早培、早培和八素八少的冲刺班提供过训练支持。
+我是哼哼。
+
+- 我曾在一家<strong>头部教育科技公司</strong>为 3 到 12 岁儿童设计认知训练。相关训练在一线教育教学产品中覆盖了大量学生，也为面向人大附早早培、早培和八素八少的冲刺班提供过训练支持。
 - 我曾在一家<strong>头部脑科学公司</strong>为儿童、成年人和老年人设计专项认知训练。相关项目开展过临床试验。我参与研发的认知训练评估和产品取得过**第二类医疗器械注册证**。项目采用的 AI 数字疗法技术路线已提交，供第三类医疗器械相关标准的前期论证参考。
 - 目前，我在一线教育服务中把学习成长与认知训练结合起来，也在开发与学习相关的**亲子认知游戏**。
 
 ## 许可
 
-原创代码采用 MIT 许可。Claude 娘的造型及其派生图集按署名、非商业条件分发。字体和其他第三方素材按各自许可分发。 [MIT 许可](https://github.com/hmhm2333/dsh-braingames/blob/HEAD/LICENSE.txt) · [第三方许可与署名](https://github.com/hmhm2333/dsh-braingames/blob/HEAD/THIRD_PARTY_NOTICES.md)
+原创代码采用 MIT 许可。字体和其他第三方素材按各自许可分发。 [MIT 许可](https://github.com/hmhm2333/dsh-braingames/blob/HEAD/LICENSE.txt) · [第三方许可与署名](https://github.com/hmhm2333/dsh-braingames/blob/HEAD/THIRD_PARTY_NOTICES.md)
