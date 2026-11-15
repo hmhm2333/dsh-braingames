@@ -4,13 +4,14 @@
   "private": true,
   "license": "MIT",
   "homepage": "https://github.com/hmhm2333/dsh-braingames",
-  "description": "dsh-braingames for DSH: a gentle single-player game while tasks run",
+  "description": "等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。",
   "type": "module",
   "main": "host.mjs",
   "exports": {
     ".": "./host.mjs",
     "./client": "./lib/client.js",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
   },
   "files": [
     "host.mjs",
