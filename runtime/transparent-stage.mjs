@@ -1,8 +1,13 @@
 
+import {createPracticeTracker} from './practice-history.mjs';
+
 // Transparent scene: only explicit game controls own mouse input.
 export function createTransparentStage(container,options={}){
   if(!(container instanceof HTMLElement))throw TypeError('Stage container must be an HTMLElement');
   if(container.querySelector(':scope > [data-braingames-stage]'))throw Error('Stage is already mounted');
+  const practice=options.onPracticeRecord&&!options.qa?createPracticeTracker({
+    gameId:options.kind,rules:options.practiceRules,write:options.onPracticeRecord,writePart:options.onPracticePart,saved:options.practiceCheckpoint
+  }):null;
   const wrapper=document.createElement('div');wrapper.dataset.braingamesStage='';wrapper.tabIndex=-1;
   Object.assign(wrapper.style,{position:'absolute',inset:0,isolation:'isolate',overflow:'hidden',pointerEvents:'none',visibility:'hidden'});
   wrapper.inert=true;wrapper.setAttribute('aria-hidden','true');
@@ -15,6 +20,10 @@ export function createTransparentStage(container,options={}){
   const gameKeys=options.keys, suppressContextMenu=options.suppressContextMenu===true;
   let menuPointer=null;
   let foreground=false,disposed=false,disposing=false,activation=0,previousFocus=null,disposePromise=null,game;
+  function syncPractice(view=game?.getRunState().view){
+    if(view==='welcome'||view==='error')practice?.reset();
+    else practice?.setPlaying(foreground&&view==='playing');
+  }
   const keyId=e=>e.code||({' ':'Space',Escape:'Escape',Enter:'Enter',Tab:'Tab'}[e.key]??e.key);
   const inside=e=>e.composedPath().includes(wrapper);
   const on=(target,type,fn,opts)=>{target.addEventListener(type,fn,opts);listeners.push(()=>target.removeEventListener(type,fn,opts));};
@@ -37,6 +46,7 @@ export function createTransparentStage(container,options={}){
   }
   function background(reason='task-pointer',{restoreFocus=true,visible:keepVisible=retainVisible&&['playing','paused'].includes(game.getRunState().view)}={}){
     ++activation;const wasForeground=foreground;foreground=false;
+    practice?.setPlaying(false);
     if(wasForeground||visible)game.suspend(reason);
     if(keepVisible&&visible){gameHost.dataset.presentation='frozen';freezeInputs(true);}
     else{freezeInputs(false);conceal();}
@@ -45,7 +55,7 @@ export function createTransparentStage(container,options={}){
     return{mode:'background',visible};
   }
   function preview(reason='preview'){
-    ++activation;foreground=false;show();gameHost.dataset.presentation='waiting';game.preview(reason);
+    ++activation;foreground=false;practice?.setPlaying(false);show();gameHost.dataset.presentation='waiting';game.preview(reason);
     notifyGuard();options.onModeChange?.('background',reason);record('preview',reason);return{mode:'background',visible};
   }
   async function bringToForeground({resume=true,start=false}={}){
@@ -58,7 +68,7 @@ export function createTransparentStage(container,options={}){
     try{notifyGuard();options.onModeChange?.('foreground','manual');wrapper.focus({preventScroll:true});await game.present({resume,start});}
     catch(error){background('activation-error');throw error;}
     if(!foreground||ticket!==activation)return{mode:'background'};
-    record('foreground','manual');return{mode:'foreground'};
+    syncPractice();record('foreground','manual');return{mode:'foreground'};
   }
   function consume(e){e.preventDefault();e.stopImmediatePropagation();}
   on(window,'keydown',e=>{
@@ -122,11 +132,12 @@ export function createTransparentStage(container,options={}){
   on(window,'compositionstart',()=>{if(foreground)background('composition');},{capture:true});
   on(document,'visibilitychange',()=>{if(document.hidden){for(const key of heldKeys)uncertainKeys.add(key);background('hidden',{restoreFocus:false});}});
   for(const type of['keydown','keyup','pointerdown','pointerup','click','dblclick','auxclick','contextmenu','beforeinput','input'])on(wrapper,type,e=>{if(foreground||(suppressContextMenu&&type==='contextmenu'))e.stopPropagation();});
-  game=options.mountGame(gameHost,{assetsBase:options.assetsBase,ui:options.ui,manifest:options.manifest,loadAtlas:options.loadAtlas,checkpoint:options.checkpoint,presented:false,qa:options.qa===true,
+  game=options.mountGame(gameHost,{assetsBase:options.assetsBase,ui:options.ui,manifest:options.manifest,loadAtlas:options.loadAtlas,checkpoint:options.checkpoint,getGameCopy:options.getGameCopy,presented:false,qa:options.qa===true,
     onResume:()=>bringToForeground({resume:true,start:false}),
     beforePlay:async()=>{if(!foreground)await bringToForeground({resume:false});return foreground&&!disposing;},
     isVisible:()=>visible,canRandom:options.canRandom,onRandom:options.onRandom,
-    onReload:options.onReload,onViewChange(){options.onGameChange?.();},
+    onReload:options.onReload,onViewChange(view){syncPractice(view);options.onGameChange?.();},
+    onPracticeResult:result=>practice?.finish(result),onPracticeDecision:practice?.recordDecision,
     onExit:()=>background('manual',{visible:false})});
   const style=document.createElement('style');
   style.textContent=options.stageStyle+':host([data-presentation="frozen"]) *,:host([data-presentation="frozen"]) button{pointer-events:none!important}:host([data-presentation="frozen"]) [data-game-resume]{pointer-events:auto!important;cursor:pointer!important}:host([data-presentation="frozen"]) [data-game-resume]::after{content:"";position:absolute;right:0;top:0;width:12px;height:12px;pointer-events:none;background:linear-gradient(90deg,#fff8e4 0 3px,transparent 3px);clip-path:polygon(0 0,30% 0,30% 100%,0 100%,0 0,65% 0,95% 0,95% 100%,65% 100%);opacity:.8}';
@@ -139,7 +150,7 @@ export function createTransparentStage(container,options={}){
   async function freezeVisible(reason='restored'){
     if(!await ready||disposed||disposing)return false;
     const state=game.getRunState();if(!['playing','paused'].includes(state.view))return false;
-    foreground=false;show();gameHost.dataset.presentation='frozen';freezeInputs(true);notifyGuard();options.onModeChange?.('background',reason);return true;
+    foreground=false;practice?.setPlaying(false);show();gameHost.dataset.presentation='frozen';freezeInputs(true);notifyGuard();options.onModeChange?.('background',reason);return true;
   }
   function getDiagnostics(){return{kind:options.kind,visible,mode:foreground?'foreground':'background',resident:!disposed,disposed,
     initError:game.snapshot().errors.join('\n'),rafActive:game.snapshot().rafPending,heldKeys:[...heldKeys],heldPointers:[...heldPointers],
@@ -150,6 +161,6 @@ export function createTransparentStage(container,options={}){
     disposePromise=(async()=>{await ready;await game.dispose();for(const remove of listeners)remove();heldKeys.clear();uncertainKeys.clear();heldPointers.clear();clickTails.clear();notifyGuard();wrapper.remove();disposed=true;record('disposed','unload');return getDiagnostics();})();
     return disposePromise;
   }
-  return{ready,foreground:bringToForeground,background,preview,freezeVisible,checkpoint:()=>game.checkpoint?.()??null,isVisible:()=>visible,dispose,getDiagnostics,getMode:()=>foreground?'foreground':'background',getRunState:()=>game.getRunState(),setKeepVisible:value=>{retainVisible=value;},setAvailability:value=>game.setAvailability(value),consumeShortcutYield(){const yielded=shortcutYield;shortcutYield=false;return yielded;},
+  return{ready,foreground:bringToForeground,background,preview,freezeVisible,checkpoint:()=>game.checkpoint?.()??null,practiceCheckpoint:()=>practice?.checkpoint()??null,isVisible:()=>visible,dispose,getDiagnostics,getMode:()=>foreground?'foreground':'background',getRunState:()=>game.getRunState(),setKeepVisible:value=>{retainVisible=value;},setAvailability:value=>game.setAvailability(value),consumeShortcutYield(){const yielded=shortcutYield;shortcutYield=false;return yielded;},
     ...(options.qa===true?{review:game.review,configure:game.configure}:{})};
 }

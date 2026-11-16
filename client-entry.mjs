@@ -3,13 +3,17 @@ import {createReadinessTracker,createStateSnapshot,readRows} from './task-state.
 import {createTaskAttentionMonitor} from './task-attention.mjs';
 import {createGameRuntime} from './runtime/session-runtime.mjs';
 import {GAME_CATALOG} from './games.mjs';
-import {SHARED_COPY} from './runtime/game-catalog.mjs';
+import {BACKUP_WORDS, SETTINGS_WORDS, localizedGameCopy, pluginLanguage, sharedWords} from './ui-copy.mjs';
 import {createRefreshStore} from './runtime/refresh-store.mjs';
+import {createPracticeStore} from './practice-store.mjs';
+import {createPracticeWriter} from './practice-writer.mjs';
+import {PracticePanel} from './practice-panel.mjs';
 import {GameIcon,GameSettings,PixelPopup,SETTINGS_FIELDS} from './host-ui.mjs';
 
-export const inject=['slots','sessions','uiSession','connection','remote','shortcuts','configForms'];
+export const inject=['slots','sessions','uiSession','connection','remote','shortcuts','configForms','locale'];
 const h=React.createElement,PACKAGE='dsh-braingames';
 const hostUiCss=__BRAINGAMES_HOST_UI_CSS__;
+const practiceRules=__BRAINGAMES_RULES__;
 
 export function apply(ctx){
   let container=null,unloaded=false,resolveHost;
@@ -18,6 +22,18 @@ export function apply(ctx){
   let guardState={foreground:false,heldCodes:[],ownedKeys:[]},errors=[];
   const listeners=new Set(),readiness=createReadinessTracker(),attention=createTaskAttentionMonitor();
   const resourceAbort=new AbortController(),preferences=ctx.configForms.get('braingames');
+  const practiceRecords=createPracticeStore();
+  let language=pluginLanguage(ctx.locale.getSnapshot().active);
+  let shared=sharedWords(language);
+  let practiceRevision=0,practiceError='';
+  function practiceChanged(error) {
+    if(error){
+      practiceError=error.name==='QuotaExceededError'?'writeQuota':'writeFailed';
+      console.error('练习记录保存失败',error);
+    }else practiceRevision++;
+    refresh();
+  }
+  const practiceWriter=createPracticeWriter({store:practiceRecords,onChange:practiceChanged});
   let hasRunning=false,preferencesReady=false,preferenceSignature='',saving=false,settingsError='',returnFocus=null;
   let currentSessionId=null,refreshStore=null,bootSettled=false,bootError='',resumeError=false,bootstrapJob=null,viewportFailure=null;
   const canFit=game=>!container||(
@@ -96,27 +112,31 @@ export function apply(ctx){
       };
     },[sessionId]);
     const s=api.status(),active=s.resident?GAME_CATALOG.find(game=>game.id===s.gameId):null;
-    const label=s.selecting?SHARED_COPY.selecting:s.loading||!s.ready&&!bootError?SHARED_COPY.loading:s.hasRound?SHARED_COPY.headerContinue:SHARED_COPY.headerStart;
+    const label=s.selecting?shared.selecting:s.loading||!s.ready&&!bootError?shared.loading:s.hasRound?shared.headerContinue:shared.headerStart;
     return h('div',{'data-braingames-task-entry':true,style:{position:'relative',display:'flex',alignItems:'center'}},
-      s.mode==='foreground'?h('span',{'data-braingames-active':true,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',fontSize:13,opacity:.65}},h(GameIcon,{icon:active?.icon}),SHARED_COPY.headerPlaying):h('button',{'data-braingames-entry':true,type:'button',style:{...button,display:'flex',alignItems:'center',gap:6},
+      s.mode==='foreground'?h('span',{'data-braingames-active':true,style:{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',fontSize:13,opacity:.65}},h(GameIcon,{icon:active?.icon}),shared.headerPlaying):h('button',{'data-braingames-entry':true,type:'button',style:{...button,display:'flex',alignItems:'center',gap:6},
         disabled:s.loading||!s.ready&&!bootError||s.ready&&!s.canStart&&!s.hasRound,
-        title:!s.canStart&&!s.hasRound?SHARED_COPY.noGames:active?.name??SHARED_COPY.appLabel,
+        title:!s.canStart&&!s.hasRound?shared.noGames:active?localizedGameCopy(active.id,language).game.title:shared.appLabel,
         onClick:()=>{if(bootError){dismissErrors=false;refresh();}else run(()=>api.open());}},h(GameIcon,{icon:active?.icon}),label),
-      s.presentation==='waiting'?h(PixelPopup,{'data-braingames-invitation':true,'aria-label':SHARED_COPY.inviteLabel},
-        h('p',{className:'braingames-popup-message'},h(GameIcon),pixelLabel(hasRunning?SHARED_COPY.invite:SHARED_COPY.inviteIdle)),
+      s.presentation==='waiting'?h(PixelPopup,{lang:language==='zh'?'zh-CN':'en','data-braingames-invitation':true,'aria-label':shared.inviteLabel},
+        h('p',{className:'braingames-popup-message'},h(GameIcon),pixelLabel(hasRunning?shared.invite:shared.inviteIdle)),
         h('div',{className:'braingames-popup-actions'},
-          h('button',{'data-braingames-accept':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(SHARED_COPY.inviteAccept)),
-          h('button',{'data-braingames-dismiss':true,type:'button',onClick:()=>runtime.dismissInvitation()},pixelLabel(SHARED_COPY.inviteDismiss)))):null);
+          h('button',{'data-braingames-accept':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(shared.inviteAccept)),
+          h('button',{'data-braingames-dismiss':true,type:'button',onClick:()=>runtime.dismissInvitation()},pixelLabel(shared.inviteDismiss)))):null);
   }
   async function savePreference(field,value){
     saving=true;settingsError='';refresh();
-    try{if(!await preferences.set(field,value))throw Error('设置未保存，请重新操作。');}
-    catch(error){settingsError=error.message;}
+    try{if(!await preferences.set(field,value))throw Error(SETTINGS_WORDS[language].saveFailed);}
+    catch(error){console.error('Game settings save failed',error);settingsError=true;}
     finally{saving=false;refresh();}
   }
-  function Settings(){
+  function PluginDetails(){
     React.useSyncExternalStore(store.subscribe,store.getSnapshot);
-    return h(GameSettings,{catalog:GAME_CATALOG,state:preferences.getSnapshot(),saving,error:settingsError,onChange:savePreference});
+    return h(React.Fragment,null,
+      h(GameSettings,{locale:language,catalog:GAME_CATALOG,state:preferences.getSnapshot(),saving,error:settingsError,onChange:savePreference}),
+      h(PracticePanel,{locale:language,catalog:GAME_CATALOG,store:practiceRecords,revision:practiceRevision,rules:practiceRules,
+        storageError:BACKUP_WORDS[language][practiceError],onImported:()=>practiceChanged(null)})
+    );
   }
   function StageHost(){
     React.useSyncExternalStore(store.subscribe,store.getSnapshot);
@@ -136,22 +156,22 @@ export function apply(ctx){
       return()=>{observer.disconnect();container=null;};
     },[]);
     const s=runtime.status(),error=bootError||openError||s.error;
-    const displayError=bootError?SHARED_COPY.bootError:SHARED_COPY.loadedError;
+    const displayError=bootError?shared.bootError:shared.loadedError;
     const requirement=viewportFailure?.game.minimumSize;
     const retryFit=viewportFailure&&canFit(viewportFailure.game);
     return h('div',{'data-braingames-overlay':true,style:{position:'absolute',inset:0,pointerEvents:'none',zIndex:9500}},
       h('style',null,hostUiCss),h('div',{ref,style:{position:'absolute',inset:0}}),
-      viewportFailure?h(PixelPopup,{'data-braingames-error':true,'data-braingames-viewport':true,role:'alert'},
-        h('p',{className:'braingames-popup-detail'},SHARED_COPY.viewportError.replace('{width}',requirement.width).replace('{height}',requirement.height)),
+      viewportFailure?h(PixelPopup,{lang:language==='zh'?'zh-CN':'en','data-braingames-error':true,'data-braingames-viewport':true,role:'alert'},
+        h('p',{className:'braingames-popup-detail'},shared.viewportError.replace('{width}',requirement.width).replace('{height}',requirement.height)),
         h('div',{className:'braingames-popup-actions'},
-          retryFit?h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(SHARED_COPY.retry)):null,
-          h('button',{'data-braingames-action':true,type:'button',onClick:()=>{viewportFailure=null;refresh();}},pixelLabel(SHARED_COPY.inviteDismiss)))):
-      error&&!dismissErrors?h(PixelPopup,{'data-braingames-error':true,role:'alert'},
+          retryFit?h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(shared.retry)):null,
+          h('button',{'data-braingames-action':true,type:'button',onClick:()=>{viewportFailure=null;refresh();}},pixelLabel(shared.inviteDismiss)))):
+      error&&!dismissErrors?h(PixelPopup,{lang:language==='zh'?'zh-CN':'en','data-braingames-error':true,role:'alert'},
         h('p',{className:'braingames-popup-detail'},displayError),
         h('div',{className:'braingames-popup-actions'},
           h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>bootError?(resumeError?api.discardSavedRound():api.retryBoot()):api.open())},
-            pixelLabel(bootError?(resumeError?SHARED_COPY.discardSavedRound:SHARED_COPY.retry):SHARED_COPY.reload)),
-          h('button',{'data-braingames-action':true,type:'button',onClick:()=>{dismissErrors=true;refresh();}},pixelLabel(SHARED_COPY.inviteDismiss)))):null);
+            pixelLabel(bootError?(resumeError?shared.discardSavedRound:shared.retry):shared.reload)),
+          h('button',{'data-braingames-action':true,type:'button',onClick:()=>{dismissErrors=true;refresh();}},pixelLabel(shared.inviteDismiss)))):null);
   }
   const runtime=createGameRuntime({games:GAME_CATALOG,canFit,enabledGameIds:[],autoInvite:false,onChange:refresh,onInputGuardChange:setGuard,
     async chooseGame(candidates,{signal}){
@@ -161,7 +181,10 @@ export function apply(ctx){
     async loadStage(game,callbacks){
       const host=container??await hostReady;if(unloaded)return null;
       const mod=await require.async(game.chunk);if(unloaded)return null;
-      return mod.mountBundledStage(host,{...callbacks,getReturnFocus:()=>returnFocus,onModeChange(mode,reason){
+      return mod.mountBundledStage(host,{...callbacks,practiceRules:practiceRules[game.id],
+        onPracticeRecord:practiceWriter.save,onPracticePart:practiceWriter.savePart,
+        getGameCopy:requested=>localizedGameCopy(game.id,requested??language),
+        getReturnFocus:()=>returnFocus,onModeChange(mode,reason){
         if(mode==='foreground'){openError='';viewportFailure=null;const baseline=snapshot('activation-baseline');attention.observe(baseline,baseline.readiness.generation);}
         callbacks.onModeChange(mode,reason);
       },loadResource:async name=>{
@@ -210,7 +233,7 @@ export function apply(ctx){
     return bootstrapJob;
   }
   const api={
-    status(){return{installed:!unloaded,version:__BRAINGAMES_VERSION__,preferencesReady,ready:preferencesReady&&bootSettled&&!bootError,...runtime.status()};},
+    status(){return{installed:!unloaded,version:__BRAINGAMES_VERSION__,language,preferencesReady,ready:preferencesReady&&bootSettled&&!bootError,...runtime.status()};},
     diagnostics(){return{...api.status(),taskState:snapshot(),inputGuard:{foreground:guardState.foreground,reserved:guardBindings.length,heldCodes:guardState.heldCodes},stage:runtime.diagnostics().stage,preferences:{status:preferences.getSnapshot().status,value:preferences.getSnapshot().value,writable:preferences.getSnapshot().writable,saving,error:settingsError},error:bootError||openError,restoreFailed:resumeError};},
     async open(options){
       if(!await api.ready)throw Error(bootError||'dsh-braingames 设置尚未就绪');
@@ -228,7 +251,7 @@ export function apply(ctx){
   };
   ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'braingames.overlay'},StageHost));
   ctx.slots.inject('conversation.session.header.utilities',()=>ctx.slots.register({name:'conversation.session.header.utilities',id:'braingames.runtime',order:-20},TaskEntry));
-  ctx.slots.inject('plugins.bundle.config',()=>ctx.slots.register({name:'plugins.bundle.config',key:PACKAGE},Settings));
+  ctx.slots.inject('plugins.bundle.config',()=>ctx.slots.register({name:'plugins.bundle.config',key:PACKAGE},PluginDetails));
   ctx.effect(()=>{
     const cancel=reason=>{const s=runtime.status();if(s.loading&&s.presentation==='active')runtime.background(reason);};
     const pointer=event=>{
@@ -238,8 +261,10 @@ export function apply(ctx){
       }
       if(!path.some(node=>node?.dataset?.braingamesTaskEntry!==undefined||node?.dataset?.braingamesAction!==undefined))cancel('task-pointer');
     },blur=()=>cancel('window-blur'),hidden=()=>{if(document.hidden)cancel('hidden');};
+    try{practiceWriter.resumePending(window.sessionStorage);}catch(error){practiceChanged(error);}
     const pagehide=()=>{
       const round=runtime.checkpoint();
+      try{practiceWriter.savePending(window.sessionStorage);}catch(error){practiceChanged(error);}
       if(!bootSettled||!refreshStore||resumeError)return;
       if(preferences.getSnapshot().value.keepOnRefresh)refreshStore.save(round);else refreshStore.clear();
     };
@@ -257,6 +282,11 @@ export function apply(ctx){
     changed('preferences');refresh();
   }
   ctx.effect(()=>preferences.subscribe(syncPreferences),'BrainGames preferences');
+  ctx.effect(()=>ctx.locale.subscribe(()=>{
+    const next=pluginLanguage(ctx.locale.getSnapshot().active);
+    if(next===language)return;
+    language=next;shared=sharedWords(next);refresh();
+  }),'BrainGames language');
   window.brainGames=api;syncPreferences();api.ready=startBootstrap();
   ctx.effect(()=>async()=>{
     unloaded=true;resolveHost(null);resourceAbort.abort();await runtime.dispose();releaseGuard();

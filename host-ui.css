@@ -5,6 +5,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "BrainGames Latin";
+  src: url("data:font/ttf;base64,__BRAINGAMES_LATIN_FONT__") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+.braingames-popup[lang="en"] { font-family: "BrainGames Latin", serif; }
+
 .braingames-popup {
   box-sizing: border-box;
   padding: 14px;
@@ -127,3 +135,112 @@
 .braingames-settings-form input { flex: none; margin: 0; }
 .braingames-setting-note { margin: 5px 0 0; font-size: 12px; opacity: .76; }
 .braingames-settings-error { color: #b33; }
+
+[data-braingames-practice] {
+  max-width: 640px;
+  margin-block: 18px 16px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+.braingames-practice-trigger, .braingames-practice-close {
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.braingames-practice-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  font-size: 13px;
+  min-height: 32px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.braingames-practice-trigger span { font-size: 17px; line-height: 1; }
+.braingames-practice-trigger:hover, .braingames-practice-close:hover {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+.braingames-practice-dialog {
+  box-sizing: border-box;
+  width: min(620px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  color: inherit;
+  background: Canvas;
+  border: 1px solid var(--dsw-alias-border-l2, color-mix(in srgb, currentColor 16%, transparent));
+  border-radius: 12px;
+  box-shadow: var(--dsw-shadow-lv3, 0 12px 32px #0003);
+}
+.braingames-practice-dialog::backdrop { background: #0005; }
+.braingames-practice-content { padding: 16px 18px 18px; line-height: 1.5; }
+.braingames-practice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.braingames-practice-header h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.braingames-practice-close {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+.braingames-practice-body p { margin: 8px 0 4px; font-size: 13px; }
+.braingames-practice-body .braingames-practice-empty { padding: 14px 0; text-align: center; opacity: .74; }
+.braingames-practice-tabs {
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 3px;
+  margin-block: 12px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.braingames-practice-tabs button {
+  flex: 1 0 auto;
+  min-height: 30px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.braingames-practice-tabs button:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.braingames-practice-tabs button[aria-selected="true"] {
+  font-weight: 600;
+  background: Canvas;
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+}
+.braingames-practice-dialog :is(button, [role="tabpanel"]):focus-visible,
+.braingames-practice-trigger:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+.braingames-practice-results { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.braingames-practice-results :is(td, th) { text-align: start; white-space: nowrap; padding: 7px 6px; }
+.braingames-practice-results :is(td, th):last-child { text-align: end; }
+.braingames-practice-results th { font-size: 12px; font-weight: 500; }
+.braingames-practice-results td { font-size: 14px; border-block-start: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+.braingames-practice-results time { font-size: 13px; opacity: .76; }
+.braingames-practice-backup { margin-block-start: 10px; font-size: 13px; }
+.braingames-practice-backup summary { width: fit-content; cursor: pointer; }
+.braingames-practice-backup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 8px; }
+.braingames-practice-backup-actions button:disabled { cursor: default; opacity: .55; }
+.braingames-practice-backup p, .braingames-practice-note { margin: 6px 0 0; font-size: 12px; }

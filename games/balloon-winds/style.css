@@ -40,6 +40,7 @@ button:disabled { cursor: default; pointer-events: none; }
   font: 18px/24px "Whale Wind Pixel", serif; text-align: center;
   clip-path: polygon(0 4px,2px 4px,2px 2px,4px 2px,4px 0,calc(100% - 4px) 0,calc(100% - 4px) 2px,calc(100% - 2px) 2px,calc(100% - 2px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 2px) calc(100% - 4px),calc(100% - 2px) calc(100% - 2px),calc(100% - 4px) calc(100% - 2px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 2px),2px calc(100% - 2px),2px calc(100% - 4px),0 calc(100% - 4px));
 }
+.stage[lang="en"] .paper, .stage[lang="en"] #tip { font-family: inherit; }
 .paper p, .paper h1, .paper h2 { margin: 0; font: inherit; }
 .rules { display: grid; grid-template-columns: repeat(2, 1fr); margin: 0 0 8px; padding: 4px 0 0; }
 .rules > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }

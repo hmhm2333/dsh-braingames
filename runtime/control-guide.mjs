@@ -2,10 +2,10 @@ import {SHARED_COPY} from './game-catalog.mjs';
 import {LOBBY_CARD_WIDTH,LOBBY_COMPANION_SIZE} from './presentation.mjs';
 
 // Shared layout, titles, settlement labels and input cues in the game panels.
-export function mountControlGuide(root, {title, control}) {
+export function mountControlGuide(root, {title, control}, shared = SHARED_COPY) {
   for (const heading of root.querySelectorAll('[data-braingames-title]')) heading.textContent = title;
   for (const label of root.querySelectorAll('[data-braingames-copy]')) {
-    label.textContent = SHARED_COPY[label.dataset.braingamesCopy];
+    label.textContent = shared[label.dataset.braingamesCopy];
   }
   for (const guide of root.querySelectorAll('[data-braingames-controls]')) {
     const input = guide.dataset.braingamesControls;
@@ -23,7 +23,7 @@ export function mountControlGuide(root, {title, control}) {
     svg.setAttribute('viewBox', symbol ? '0 0 20 12' : '0 0 10 12');
     svg.setAttribute('shape-rendering', 'crispEdges');
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', symbol ? text : left ? SHARED_COPY.mouseLeft : SHARED_COPY.mouseRight);
+    svg.setAttribute('aria-label', symbol ? text : left ? shared.mouseLeft : shared.mouseRight);
     svg.innerHTML = '<path fill="#263248" d="M2 0h6v1h1v1h1v8H9v1H8v1H2v-1H1v-1H0V2h1V1h1z"/>' +
       '<path fill="#fff8e4" d="M2 1h6v1h1v8H8v1H2v-1H1V2h1z"/>' +
       '<path fill="#b67945" d="' + (left ? 'M2 1h2v4H1V2h1z' : 'M6 1h2v1h1v3H6z') + '"/>' +
@@ -37,7 +37,9 @@ export function mountControlGuide(root, {title, control}) {
     guide.append(label);
   }
 
+  if (root.querySelector('style[data-braingames-guide-style]')) return;
   const style = document.createElement('style');
+  style.dataset.braingamesGuideStyle = '';
   style.textContent = `
     :host { --lobby-card-width: ${LOBBY_CARD_WIDTH}px; --lobby-companion-size: ${LOBBY_COMPANION_SIZE}px; }
     [aria-labelledby="game-title"] {

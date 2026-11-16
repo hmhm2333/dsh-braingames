@@ -1,7 +1,7 @@
 import React from 'react';
 import {createPixelText} from './runtime/pixel-text.mjs';
 import {gameIconUrl} from './runtime/game-icons.mjs';
-import {SHARED_COPY} from './runtime/game-catalog.mjs';
+import {SETTINGS_WORDS, localizedGameCopy, sharedWords} from './ui-copy.mjs';
 
 const h = React.createElement;
 
@@ -22,37 +22,19 @@ export function PixelPopup({children, ...attributes}) {
   return h('aside', {...attributes, ref, className: 'braingames-popup'}, children);
 }
 
-const groups = [
-  {
-    title: '邀请',
-    settings: [
-      ['autoInvite', '游戏邀请', '自动弹出邀请', '只从任务标题栏打开'],
-      ['inviteRequireRunning', '自动邀请的时机', '有任务运行才邀请', '空闲时也可邀请'],
-      ['inviteRequireNoUnread', '有未读完成提醒时', '暂不自动邀请', '照常自动邀请']
-    ]
-  },
-  {
-    title: '开局与继续',
-    settings: [
-      ['modelRecommendation', '模型推荐', '开局时按最近对话标题推荐', null,
-        '默认在本地随机选择游戏。开启后，首次开局如有多款可玩，会用 DSH 默认模型推荐。最多发送最近 10 个主对话标题（每条最多 64 个 UTF-16 代码单元），可能计费。等待最多 5 秒，没拿到推荐就随机。'],
-      ['keepVisibleOnPause', '切回任务时', '保留画面，点鲸鱼娘继续', '收起画面，从标题栏继续'],
-      ['keepOnRefresh', '刷新页面后', '保留本局', '下次打开从头开始', '当前对局仅在本次 DSH 运行期间保留。']
-    ]
-  }
-];
-export const SETTINGS_FIELDS = groups.flatMap(group => group.settings.map(([field]) => field));
+export const SETTINGS_FIELDS = SETTINGS_WORDS.zh.groups.flatMap(group => group.settings.map(([field]) => field));
 
-export function GameSettings({catalog, state, saving, error, onChange}) {
+export function GameSettings({locale, catalog, state, saving, error, onChange}) {
   const {value, writable} = state;
+  const copy = SETTINGS_WORDS[locale];
   if (state.status !== 'ready') {
-    return h('p', {role: 'status'}, state.status === 'loading' ? '设置加载中…' : 'dsh-braingames 设置不可用。');
+    return h('p', {role: 'status'}, state.status === 'loading' ? copy.loading : copy.unavailable);
   }
   return h('section', {'data-braingames-settings': true},
     h('fieldset', {className: 'braingames-settings-form', disabled: !writable || saving},
-      h('legend', null, '游戏设置'),
-      h('p', {className: 'braingames-setting-note'}, SHARED_COPY.openingGuide),
-      h('h4', null, '游戏池'),
+      h('legend', null, copy.title),
+      h('p', {className: 'braingames-setting-note'}, sharedWords(locale).openingGuide),
+      h('h4', null, copy.pool),
       h('div', {className: 'braingames-game-pool'}, ...catalog.map(game =>
         h('label', {key: game.id},
           h('input', {
@@ -62,10 +44,10 @@ export function GameSettings({catalog, state, saving, error, onChange}) {
               void onChange('enabledGames', ids);
             }
           }),
-          h(GameIcon, {icon: game.icon}), game.name)
+          h(GameIcon, {icon: game.icon}), localizedGameCopy(game.id,locale).game.title)
       )),
-      h('p', {className: 'braingames-setting-note'}, '仅从勾选的游戏中开始新局。至少勾选两款，结算时才能切换游戏。'),
-      ...groups.map(group => h('div', {key: group.title, className: 'braingames-settings-group'},
+      h('p', {className: 'braingames-setting-note'}, copy.poolNote),
+      ...copy.groups.map(group => h('div', {key: group.title, className: 'braingames-settings-group'},
         h('h4', null, group.title),
         ...group.settings.map(([field, label, on, off, note]) =>
           h('fieldset', {key: field, className: 'braingames-setting'},
@@ -90,8 +72,8 @@ export function GameSettings({catalog, state, saving, error, onChange}) {
         )
       ))
     ),
-    saving ? h('p', {role: 'status'}, '保存中…') : null,
-    !writable ? h('p', {role: 'status'}, '当前设置为只读状态。') : null,
-    error ? h('p', {role: 'alert', className: 'braingames-settings-error'}, error) : null
+    saving ? h('p', {role: 'status'}, copy.saving) : null,
+    !writable ? h('p', {role: 'status'}, copy.readOnly) : null,
+    error ? h('p', {role: 'alert', className: 'braingames-settings-error'}, copy.saveFailed) : null
   );
 }

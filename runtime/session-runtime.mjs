@@ -43,7 +43,7 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
   async function ensure(){
     if(stage)return stage;if(loading)return loading;
     const pending=(async()=>{
-      const mounted=await loadStage(current,{onModeChange:modeChanged,onInputGuardChange,onGameChange:notify,onRandom:random,onReload:reload,keepVisibleOnPause:keepVisible,canRandom:alternatives().length>0,checkpoint:restoreCheckpoint});
+      const mounted=await loadStage(current,{onModeChange:modeChanged,onInputGuardChange,onGameChange:notify,onRandom:random,onReload:reload,keepVisibleOnPause:keepVisible,canRandom:alternatives().length>0,checkpoint:restoreCheckpoint?.game,practiceCheckpoint:restoreCheckpoint?.practice});
       if(mounted===null&&disposed)return null;stage=mounted;
       if(!await mounted.ready)throw Error('BrainGames加载失败：'+mounted.getDiagnostics().initError);
       restoreCheckpoint=null;availability();return mounted;
@@ -143,12 +143,14 @@ export function createGameRuntime({games,loadStage,chooseGame,canFit=()=>true,on
   }
   function checkpoint(){
     cancelIntent();if(!stage)return null;const wasVisible=stage.isVisible();stage.background('refresh',{restoreFocus:false,visible:false});presentation='hidden';
-    const game=stage.checkpoint?.();return game?{gameId:current.id,game,wasVisible}:null;
+    const game=stage.checkpoint?.();if(!game)return null;
+    const practice=stage.practiceCheckpoint?.();
+    return {gameId:current.id,game,wasVisible,...(practice?{practice}:{})};
   }
   function restore(saved){
     if(stage||loading||closing||restorePromise)throw Error('Cannot restore over a game instance');
     const game=games.find(game=>game.id===saved.gameId);if(!game||!saved.game)throw Error('保存的游戏不在当前游戏池中');
-    current=game;roundChosen=true;restoreCheckpoint=saved.game;
+    current=game;roundChosen=true;restoreCheckpoint=saved;
     const pending=(async()=>{const mounted=await ensure();if(disposed)return;if(keepVisible&&saved.wasVisible)await mounted.freezeVisible('refresh');presentation=mounted.isVisible()?'frozen':'hidden';notify();})();
     restorePromise=pending;notify();return pending.finally(()=>{if(restorePromise===pending)restorePromise=null;notify();});
   }

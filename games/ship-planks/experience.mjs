@@ -1,8 +1,7 @@
-import {GAME_COPY,SHARED_COPY} from '../../runtime/game-catalog.mjs';
+import {createGameLanguage,scoreUnit} from '../../runtime/game-language.mjs';
 import {applyCopy} from '../../runtime/apply-copy.mjs';
 import {mountControlGuide} from '../../runtime/control-guide.mjs';
 import {mountGameRecords} from '../../runtime/game-records.mjs';
-const copy=GAME_COPY['planks-g02'];
 import {RepairSession,INTRO_PATCH,MAX_LIVES,CONTACT_MS,ANSWER_MS,WARNING_MS,randomSource,rotateCells} from './core.mjs';
 import {RepairScene,LAYOUT,drawWood,siteBox,leakPoint,loadWhale} from './scene.mjs';
 import {hullClip,VOYAGE_MS,voyageTarget,voyagePose,fitVoyage,LIFE_POINTS,MAST} from './sampan.mjs';
@@ -12,9 +11,10 @@ import {createMoveHandle} from '../../runtime/move-handle.mjs';
 import {RECOVERY_MS,playableSize} from '../../runtime/presentation.mjs';
 
 export function mountGame(host,options={}){
+ const language=createGameLanguage('planks-g02',options);
  if(!(host instanceof HTMLElement))throw TypeError('Game host must be an HTMLElement');
  const shadow=host.attachShadow({mode:'open'}),root=document.createElement('main'),style=document.createElement(options.ui?'style':'link');
- root.className='stage';root.dataset.view='loading';root.innerHTML='<p role="status">'+copy.loading+'</p>';
+ root.className='stage';root.dataset.view='loading';root.innerHTML='<p role="status">'+language.game.loading+'</p>';
  const styleReady=options.ui?Promise.resolve():new Promise((resolve,reject)=>{style.onload=resolve;style.onerror=()=>reject(Error('补船样式加载失败'));});
  if(options.ui)style.textContent=options.ui.style;else{style.rel='stylesheet';style.href=new URL('./style.css',import.meta.url).href;}
  shadow.append(style,root);
@@ -37,9 +37,18 @@ export function mountGame(host,options={}){
   clockAnimation?.cancel();clockAnimation=null;const clock=$('clock-progress');if(!clock)return;
   const elapsed=session?.task?.elapsedMs??ANSWER_MS;clock.style.strokeDashoffset=String(264*elapsed/ANSWER_MS);
  }
+ function recordDecision(outcome,selected=null){
+  const task=session.task;
+  options.onPracticeDecision?.({
+   atMs:session.clockMs,level:session.progress.current.stage,outcome,
+   responseMs:outcome==='timeout'?null:task.elapsedMs,family:task.family,rotation:task.rotation,
+   load:task.actualLoad,complexity:task.complexityBand,assisted:task.assisted,answer:task.answer,selected
+  });
+ }
  function stopAnswer(commit=true){
   if(answerTimer!==null)clearTimeout(answerTimer);answerTimer=null;
-  const started=answerStartedAt;answerStartedAt=null;if(commit&&started!==null)session.elapseAnswer(Math.max(0,performance.now()-started));
+  const started=answerStartedAt;answerStartedAt=null;
+  if(commit&&started!==null&&session.elapseAnswer(Math.max(0,performance.now()-started)))recordDecision('timeout');
   root.dataset.answerActive='false';paintClock();
  }
  function armAnswer(){
@@ -62,18 +71,38 @@ export function mountGame(host,options={}){
   $('boat-hit').hidden=!playing;$('move-whale').hidden=!playing;
   $('start').disabled=!canReplay||small();$('replay').disabled=!canReplay||small();
   $('random').hidden=!options.onRandom;$('random').disabled=!canRandom||small();
-  $('lives').setAttribute('aria-label',SHARED_COPY.chancesLeft.replace('{lives}',session.lives));
+  $('lives').setAttribute('aria-label',language.shared.chancesLeft.replace('{lives}',session.lives));
   for(let i=0;i<MAX_LIVES;i++)$('lives').children[i].dataset.lost=String(i>=session.lives);
   // Controls keep ownership during recovery/animation. Ignored clicks must not
   // fall through to DSH merely because the current placement is still animating.
   for(const button of $('sites').children){
-   const slot=Number(button.dataset.site),site=session.sites[slot];button.hidden=!site;button.disabled=!site;button.setAttribute('aria-label','补第'+(slot+1)+'处破口');
+   const slot=Number(button.dataset.site),site=session.sites[slot];button.hidden=!site;button.disabled=!site;button.setAttribute('aria-label',language.text('patch','补第{slot}处破口').replace('{slot}',slot+1));
    if(site){const box=siteBox(site),drop=leakPoint(site.cells);Object.assign(button.style,{left:box.x+'px',top:box.y+'px'});Object.assign(button.firstChild.style,{left:(drop[0]*LAYOUT.cell+6)+'px',top:(drop[1]*LAYOUT.cell+10)+'px',animationDelay:-((site.x+site.y)*137%900)+'ms'});button.dataset.sealed=String(session.motion?.correct&&session.motion.slot===slot&&session.motion.elapsedMs>=CONTACT_MS);}
+  }
+ }
+ function resultText(){
+  text('result-value',session.stats.built);text('best-value',best);
+  if(language.id==='en'){
+   root.querySelector('#result .number>span').textContent=scoreUnit(language.game,session.stats.built);
+   root.querySelector('#result .best span span').textContent=scoreUnit(language.game,best);
   }
  }
  function finish(){
   stopAnswer(false);stop();if(session.stats.built>best)best=options.qa?session.stats.built:records.saveScore(bestKey,session.stats.built);
-  text('result-value',session.stats.built);text('best-value',best);hover=null;setView('finished');render();pixelText?.flush();$('replay').focus({preventScroll:true});
+  options.onPracticeResult?.({
+    score:session.stats.built,level:session.progress.current.stage,
+    correct:session.stats.built,attempts:session.stats.built+session.stats.mistakes
+  });
+  resultText();hover=null;setView('finished');render();pixelText?.flush();$('replay').focus({preventScroll:true});
+ }
+ function applyLanguage(){
+   language.apply(root);
+   applyCopy(root,{'#welcome .rules>div:first-child span':language.game.rules[0],'#welcome .rules>div:last-child span':language.game.rules[1],
+    '#start':language.game.start,'#result .number>span':language.game.resultUnit,'#loading p':language.game.loading});
+   mountControlGuide(root,language.game,language.shared);
+   $('move-whale').title=language.shared.moveHint;
+  $('move-whale').setAttribute('aria-label',language.shared.moveHint);
+   records?.setCopy(language.shared);
  }
  function needed(){return recoveryUntil!==0||!!session?.motion||!!session?.growth||!!voyage;}
  function schedule(){if(raf===null&&presented&&!disposed&&!small()&&!grab&&view==='playing'&&needed())raf=requestAnimationFrame(frame);}
@@ -99,7 +128,7 @@ export function mountGame(host,options={}){
  }
  function fail(error){
   if(disposed)return;stopAnswer(false);stop();errors.push(error.stack??String(error));console.error(error);session?.pause();
-  if(!$('error')){root.replaceChildren();const panel=document.createElement('p');panel.setAttribute('role','alert');panel.textContent=SHARED_COPY.loadedError;root.append(panel);view='error';options.onViewChange?.(view);return;}
+  if(!$('error')){root.replaceChildren();const panel=document.createElement('p');panel.setAttribute('role','alert');panel.textContent=language.shared.loadedError;root.append(panel);view='error';options.onViewChange?.(view);return;}
   setView('error');pixelText?.flush();
  }
  function clampPosition(x,y){return navigation.clampPosition(x,y,width,height);}
@@ -126,6 +155,7 @@ export function mountGame(host,options={}){
   pending=true;try{
    if(options.beforePlay&&await options.beforePlay()===false)return false;
    if(disposed||!presented||small())return false;
+   if(language.selectNext())applyLanguage();
    stopAnswer(false);stop();const roundSeed=qaSetup?.seed??seed();session=new RepairSession({seed:roundSeed});session.start();navRandom=randomSource(roundSeed^0x9e3779b9);voyage=null;completedVoyages=0;answerWakeups=0;heading=0;$('core').style.setProperty('--heading','0deg');delete root.dataset.voyaging;delete $('core').dataset.voyaging;$('core').style.transform='';
    if(qaSetup?.lives)session.lives=qaSetup.lives;
    hover=null;press=null;recoveryUntil=0;delete root.dataset.recovering;
@@ -141,8 +171,12 @@ export function mountGame(host,options={}){
   if(blocked()||view!=='playing'||!session.canAct())return;
   if(button.dataset.site===undefined)return;
   stopAnswer();if(!session.canAct()){sync();render();lastWall=performance.now();schedule();return;}
-  const out=session.place(Number(button.dataset.site));hover=null;
-  if(out.ok)$('announcement').textContent=out.correct?copy.feedback.correct:copy.feedback.wrong;
+  const slot=Number(button.dataset.site);
+  const out=session.place(slot);hover=null;
+  if(out.ok){
+   recordDecision(out.correct?'correct':'wrong',slot);
+   $('announcement').textContent=out.correct?language.game.feedback.correct:language.game.feedback.wrong;
+  }
   sync();render();lastWall=performance.now();schedule();
  }
  function suspend(){
@@ -151,6 +185,7 @@ export function mountGame(host,options={}){
  }
  async function present({resume=true,start:directStart=false}={}){
   if(disposed)return false;presented=true;root.dataset.presented='true';if(!ready)return false;
+  if(view==='welcome'&&language.selectNext())applyLanguage();
   width=host.clientWidth;height=host.clientHeight;placeCore();pixelText?.present();
   if(directStart&&view==='welcome')return start();
   if(view==='paused'&&resume&&!small()){session.resume();setView('playing');render();recover();}else{sync();render();armAnswer();}
@@ -169,12 +204,9 @@ export function mountGame(host,options={}){
   const [markup,,font,whale]=await Promise.all([options.ui?options.ui.markup:fetch(new URL('./markup.html',import.meta.url)).then(r=>{if(!r.ok)throw Error('补船界面加载失败');return r.text();}),styleReady,face.load(),loadWhale(options)]);
   if(disposed){whale.image.close?.();return false;}
   document.fonts.add(font);root.innerHTML=markup;
-  applyCopy(root,{'#welcome .rules>div:first-child span':copy.rules[0],'#welcome .rules>div:last-child span':copy.rules[1],
-    '#start':copy.start,'#result .number>span':copy.resultUnit,'#loading p':copy.loading});
-  mountControlGuide(root,copy);
-  $('move-whale').title=SHARED_COPY.moveHint;
-  $('move-whale').setAttribute('aria-label',SHARED_COPY.moveHint);
+  applyLanguage();
   records=mountGameRecords(root,'#welcome','#result');
+  records.setCopy(language.shared);
   session=new RepairSession();scene=new RepairScene($('scene'),whale,$('companion'),$('clock-occluder'));
   for(let i=0;i<MAX_LIVES;i++){
    const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 9 8');icon.setAttribute('aria-hidden','true');Object.assign(icon.style,{left:(LIFE_POINTS[i][0]-MAST.x+40-9)+'px',top:(LIFE_POINTS[i][1]-MAST.y+40-8)+'px'});
@@ -201,14 +233,14 @@ export function mountGame(host,options={}){
   const clockPath=Array.from({length:33},(_,i)=>{const a=Math.PI+i*Math.PI/32,x=32+Math.round(15*Math.cos(a))*2,y=34+Math.round(15*Math.sin(a))*2;return i?'H'+x+'V'+y:'M'+x+' '+y;}).join('');$('clock-track').setAttribute('d',clockPath);$('clock-progress').setAttribute('d',clockPath);
   legends();
   if(options.checkpoint){const saved=options.checkpoint;if(saved.version!==1)throw Error('Invalid G02 experience checkpoint');session=RepairSession.restore(saved.session);session.pause();position=saved.position;layout=saved.layout;voyage=saved.voyage;heading=saved.heading;completedVoyages=saved.completedVoyages;navRandom=randomSource(1);if(saved.navigation!==null)navRandom.restore(saved.navigation);$('core').style.setProperty('--heading',heading+'deg');if(voyage){root.dataset.voyaging='true';$('core').dataset.voyaging='true';}view=saved.view==='playing'?'paused':saved.view;}
-  placeCore();pixelText=createPixelText(root);ready=true;setView(options.checkpoint?view:'welcome');if(view==='finished'){text('result-value',session.stats.built);text('best-value',best);}render();pixelText.flush();if(!presented)pixelText.suspend();
+  placeCore();pixelText=createPixelText(root);ready=true;setView(options.checkpoint?view:'welcome');if(view==='finished')resultText();render();pixelText.flush();if(!presented)pixelText.suspend();
   resizeObserver=new ResizeObserver(resize);resizeObserver.observe(host);return true;
  })().catch(error=>{fail(error);return false;});
- function checkpoint(){if(!ready||errors.length)return null;return{version:1,view,session:session.checkpoint(),position,layout,voyage,heading,completedVoyages,navigation:navRandom?.getState()??null};}
+ function checkpoint(){if(!ready||errors.length)return null;return{version:1,language:language.id,view,session:session.checkpoint(),position,layout,voyage,heading,completedVoyages,navigation:navRandom?.getState()??null};}
  function setFrozen(active){
   frozenVisible=active;frozenDragged=false;
   const button=$('move-whale');if(!button)return;
-  button.title=active?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
+  button.title=active?language.shared.freezeHint:language.shared.moveHint;
   button.setAttribute('aria-label',button.title);
   button.tabIndex=active?0:-1;
  }

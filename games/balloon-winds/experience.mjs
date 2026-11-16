@@ -1,16 +1,15 @@
 import {createMoveHandle} from '../../runtime/move-handle.mjs';
 import {RECOVERY_MS} from '../../runtime/presentation.mjs';
-import {GAME_COPY, SHARED_COPY} from '../../runtime/game-catalog.mjs';
+import {createGameLanguage,scoreUnit} from '../../runtime/game-language.mjs';
 import {applyCopy} from '../../runtime/apply-copy.mjs';
 import {mountControlGuide} from '../../runtime/control-guide.mjs';
 import {mountGameRecords} from '../../runtime/game-records.mjs';
 import {createPixelText} from '../../runtime/pixel-text.mjs';
 import {ScreenFlight, MIN_VIEW, same, signedWind} from './core.mjs';
 import {placeClouds, placeCoordinatePins, balloonScale, CLOUD_W, CLOUD_H, PIN_W, PIN_H} from './layout.mjs';
-import {ROUND_MS} from './difficulty.mjs';
+import {difficultyAt, ROUND_MS} from './difficulty.mjs';
 import {drawRuleArt, flightDuration, hoveringCloud, loadMotion, makeScene, motionSample, MISS_MS} from './scene.mjs';
 
-const copy = GAME_COPY['balloon-winds'];
 const bestKey = 'braingames.balloon-winds.best.v2';
 const MAX_FRAME_GAP_MS = 250;
 const coordinates = ({x, y}) => '(' + Math.round(x) + ',' + Math.round(y) + ')';
@@ -30,6 +29,7 @@ async function source(file) {
 }
 
 export function mountGame(host, options) {
+  const language=createGameLanguage('balloon-winds',options);
   const shadow = host.attachShadow({mode: 'open'});
   const style = document.createElement('style');
   const root = document.createElement('main');
@@ -104,6 +104,10 @@ export function mountGame(host, options) {
       if (currentView === 'finished') {
         setText($('score'), String(session.state.stars));
         setText($('best-value'), String(best));
+        if(language.id==='en'){
+          setText($('unit'),scoreUnit(language.game,session.state.stars));
+          setText(root.querySelector('.best-score > span'),scoreUnit(language.game,best));
+        }
       }
       return;
     }
@@ -131,7 +135,7 @@ export function mountGame(host, options) {
     setText($('target'), coordinates(state.target));
     const heat = String(Math.ceil(100 * state.remainingMs / ROUND_MS));
     if ($('heat').getAttribute('aria-valuenow') !== heat) $('heat').setAttribute('aria-valuenow', heat);
-    setText($('flight-status'), state.hearts + ' 颗心');
+    setText($('flight-status'), language.text('hearts','{count} 颗心').replace('{count}',state.hearts));
     const pins = placeCoordinatePins(width, height, point, target, actorScale, places.values());
     at($('current'), pins.current.x, pins.current.y);
     at($('target'), pins.target.x, pins.target.y);
@@ -141,7 +145,7 @@ export function mountGame(host, options) {
     at($('pilot'), pilot.x, pilot.y);
     at($('resume'), pilot.x, pilot.y);
 
-    const tip = state.loss === 'timeout' ? copy.feedback.cold : state.loss === 'wind' ? copy.feedback.spent : edgeUntil > clock ? copy.feedback.edge : '';
+    const tip = state.loss === 'timeout' ? language.game.feedback.cold : state.loss === 'wind' ? language.game.feedback.spent : edgeUntil > clock ? language.game.feedback.edge : '';
     hide($('tip'), !tip || !presented || Boolean(flight || drag));
     if (!$('tip').hidden) {
       setText($('tip'), tip);
@@ -164,8 +168,8 @@ export function mountGame(host, options) {
       button.dataset.wind = wind.id;
       button.tabIndex = -1;
       button.textContent = coordinates(wind);
-      button.setAttribute('aria-label', '点云 ' + coordinates(wind));
-      button.title = copy.feedback.controls;
+      button.setAttribute('aria-label', language.text('cloud','点云 {point}').replace('{point}',coordinates(wind)));
+      button.title = language.game.feedback.controls;
       button.style.width = CLOUD_W + 'px';
       button.style.height = CLOUD_H + 'px';
       button.addEventListener('click', event => {
@@ -195,14 +199,14 @@ export function mountGame(host, options) {
     flight = newFlight(wind, direction);
     if (!flight) {
       edgeUntil = clock + 1300;
-      setText($('announce'), copy.feedback.edge);
+      setText($('announce'), language.game.feedback.edge);
       redraw();
       schedule();
       return;
     }
     answerSince = null;
     edgeUntil = 0;
-    setText($('announce'), direction === 1 ? copy.feedback.add : copy.feedback.subtract);
+    setText($('announce'), direction === 1 ? language.game.feedback.add : language.game.feedback.subtract);
     updateInputs();
     redraw();
     schedule();
@@ -232,16 +236,34 @@ export function mountGame(host, options) {
     schedule();
   }
 
+  function applyLanguage(){
+    language.apply(root);
+    applyCopy(root, {'#start': language.game.start, '#unit': language.game.resultUnit, '#wind-goal': language.game.ruleNote});
+    mountControlGuide(root,language.game,language.shared);
+    $('pilot').title = language.shared.moveHint;
+    $('pilot').setAttribute('aria-label', language.shared.moveHint);
+    $('resume').title = language.shared.freezeHint;
+    $('resume').setAttribute('aria-label', language.shared.freezeHint);
+    records?.setCopy(language.shared);
+  }
+  function decisionContext(point = session.state.position) {
+    const state = session.state;
+    return {level: difficultyAt(state.stars).stage, responseMs: ROUND_MS - state.remainingMs,
+      puzzle: state.serial, x: point.x, y: point.y, targetX: state.target.x, targetY: state.target.y};
+  }
+
   function endDrag(active, dx, dy) {
     if (!active || !drag) return;
     const point = movedPoint(dx, dy);
     drag = null;
     $('pilot').removeAttribute('data-dragging');
+    const context = options.onPracticeDecision && decisionContext(point);
     if (session.relocate(point)) {
+      if (context) options.onPracticeDecision({...context, outcome: 'relocate'});
       rebuildClouds();
-      setText($('announce'), copy.feedback.moved.replace('{point}', coordinates(point)));
+      setText($('announce'), language.game.feedback.moved.replace('{point}', coordinates(point)));
     } else if (!same(point, session.state.position)) {
-      setText($('announce'), same(point, session.state.target) ? copy.feedback.needsWind : copy.feedback.unreachable);
+      setText($('announce'), same(point, session.state.target) ? language.game.feedback.needsWind : language.game.feedback.unreachable);
     }
     updateInputs();
     armAnswer();
@@ -271,6 +293,7 @@ export function mountGame(host, options) {
   }
 
   function settleBest() {
+    options.onPracticeResult?.({score: session.state.stars, level: difficultyAt(session.state.stars).stage});
     if (session.state.stars <= best) return;
     best = records.saveScore(bestKey, session.state.stars);
   }
@@ -284,7 +307,7 @@ export function mountGame(host, options) {
     answerSince = null;
     hold?.cancel({untilRelease: true});
     rebuildClouds();
-    const message = session.state.loss === 'timeout' ? copy.feedback.timeout : copy.feedback.empty;
+    const message = session.state.loss === 'timeout' ? language.game.feedback.timeout : language.game.feedback.empty;
     setText($('announce'), message);
   }
 
@@ -303,6 +326,7 @@ export function mountGame(host, options) {
     const elapsed = answerSince === null ? 0 : Math.max(0, now - answerSince);
     answerSince = Math.max(now, answerSince ?? now);
     if (!session.elapse(elapsed)) return false;
+    options.onPracticeDecision?.({...decisionContext(), outcome: 'timeout', responseMs: null});
     showLoss();
     return true;
   }
@@ -320,13 +344,16 @@ export function mountGame(host, options) {
       if (flight) {
         flight.elapsed += dt;
         if (flight.elapsed >= flightDuration(art, flight.hit)) {
+          const context = options.onPracticeDecision && decisionContext(flight.to);
           const result = session.land(flight.id, flight.direction);
+          if (context) options.onPracticeDecision({...context, outcome: result, wind: flight.id,
+            direction: flight.direction, windX: flight.wind.x, windY: flight.wind.y});
           flight = null;
           if (result === 'miss') showLoss();
           else {
             rebuildClouds();
             const point = coordinates(session.state.position);
-            setText($('announce'), result === 'star' ? copy.feedback.star.replace('{point}', point) : copy.feedback.landed.replace('{point}', point));
+            setText($('announce'), result === 'star' ? language.game.feedback.star.replace('{point}', point) : language.game.feedback.landed.replace('{point}', point));
             armAnswer();
           }
           changed = true;
@@ -430,6 +457,7 @@ export function mountGame(host, options) {
     pending = true;
     try {
       if (!await options.beforePlay() || !presented || disposed || small) return;
+      if (language.selectNext()) applyLanguage();
       session = new ScreenFlight({seed: seed()});
       flight = null;
       missStart = null;
@@ -447,6 +475,7 @@ export function mountGame(host, options) {
   }
 
   async function present({resume = true, start: directStart = false} = {}) {
+    if (view() === 'welcome' && language.selectNext()) applyLanguage();
     const continuing = playing() && resume && !presented;
     presented = true;
     if (continuing) recovery = performance.now() + RECOVERY_MS;
@@ -469,13 +498,9 @@ export function mountGame(host, options) {
     document.fonts.add(font);
     style.textContent = css;
     root.innerHTML = html;
-    $('pilot').title = SHARED_COPY.moveHint;
-    $('pilot').setAttribute('aria-label', SHARED_COPY.moveHint);
-    $('resume').title = SHARED_COPY.freezeHint;
-    $('resume').setAttribute('aria-label', SHARED_COPY.freezeHint);
-    applyCopy(root, {'#start': copy.start, '#unit': copy.resultUnit, '#wind-goal': copy.ruleNote});
-    mountControlGuide(root, copy);
+    applyLanguage();
     records = mountGameRecords(root, '#welcome', '#result');
+    records.setCopy(language.shared);
     drawRuleArt($('rule-add'), $('rule-subtract'), art);
     scene = makeScene($('canvas'), art);
     best = records.readScore(bestKey);
@@ -507,7 +532,7 @@ export function mountGame(host, options) {
       recovering: Boolean(recovery), relocating: Boolean(drag), flight: flight ? structuredClone(flight) : null,
       miss: missStart !== null, errors: [...errors], session: session ? structuredClone(session.state) : null,
       viewport: {width, height}, best}),
-    checkpoint: () => !ready || errors.length ? null : saved ?? (session ? {version: 2,
+    checkpoint: () => !ready || errors.length ? null : saved ?? (session ? {version: 2, language: language.id,
       session: session.checkpoint(), missAge: missStart === null ? null : clock - missStart,
       flight: flight ? {id: flight.id, direction: flight.direction, elapsed: flight.elapsed} : null} : null),
     setFrozen(value) {

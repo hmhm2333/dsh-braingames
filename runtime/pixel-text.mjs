@@ -11,7 +11,7 @@ export function createPixelText(root,{alphaThreshold=48}={}){
     if(!canvas.width||!canvas.height)return;
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.font='12px '+style.fontFamily;ctx.fillStyle=style.color;ctx.textBaseline='alphabetic';
-    const glyph=ctx.measureText('饭'),lines=[];
+    const glyph=ctx.measureText(root.lang==='en'?'Hgj':'饭'),lines=[];
     const node=label.firstChild,range=document.createRange();
     let offset=0;
     for(const char of node.textContent){
@@ -44,10 +44,11 @@ export function createPixelText(root,{alphaThreshold=48}={}){
   const observer=new MutationObserver(records=>{
     if(records.some(r=>r.type!=='attributes'||r.attributeName==='hidden'||r.target===root))repaint();
   });
-  observer.observe(root,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden','style']});
+  observer.observe(root,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden','style','lang']});
   const resize=new ResizeObserver(repaint);resize.observe(root);
   const events=['pointerover','pointerout','focusin','focusout'];
   for(const event of events)root.addEventListener(event,repaint);
+  document.fonts.addEventListener('loadingdone',repaint);
   repaint();
-  return{flush(){if(disposed)return;if(pending!==null)cancelAnimationFrame(pending);pending=null;for(const label of root.querySelectorAll('[data-pixel-text]'))paint(label);},suspend(){presented=false;if(pending!==null)cancelAnimationFrame(pending);pending=null;},present(){presented=true;repaint();},dispose(){disposed=true;observer.disconnect();resize.disconnect();for(const event of events)root.removeEventListener(event,repaint);if(pending!==null)cancelAnimationFrame(pending);}};
+  return{flush(){if(disposed)return;if(pending!==null)cancelAnimationFrame(pending);pending=null;for(const label of root.querySelectorAll('[data-pixel-text]'))paint(label);},suspend(){presented=false;if(pending!==null)cancelAnimationFrame(pending);pending=null;},present(){presented=true;repaint();},dispose(){disposed=true;observer.disconnect();resize.disconnect();document.fonts.removeEventListener('loadingdone',repaint);for(const event of events)root.removeEventListener(event,repaint);if(pending!==null)cancelAnimationFrame(pending);}};
 }
