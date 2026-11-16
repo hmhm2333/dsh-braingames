@@ -1,0 +1,10 @@
+{
+  "family": "Noto Serif SC",
+  "weight": 400,
+  "license": "OFL-1.1",
+  "source": "https://fonts.googleapis.com/css?family=Noto+Serif+SC:400&text=%20!%22%23%24%25%26'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~%C3%A9%C3%89%C3%97%E2%88%92%E2%80%A6%E2%80%99",
+  "fontURL": "https://fonts.gstatic.com/l/font?kit=H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7SCqyWv6zLoVQyhYmLvpnzj_M2vT5hHjWJ4f10m3Ok9QzhJRf0CjiyQQ-rLn6ckrbssFhscwneq5S_4QOLOC3A9X_WppXNPaDfWWN8geBtzdrVTenipC0xwvB38m5l8g6uMvQOKIZVXOjgjPnpzkfeklN5o2xz5KgdrpjTePFLfzkpmFtsV7Dehg9can0TAKLcxMuj-xrOVgrfC0lpUCpSFlznR8m92UgzbJwIOgORctAtokXoX8O5WF-dDQ5mIMg&skey=37fe335b8fd815cc&v=v36",
+  "characters": " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~éÉ×−…’",
+  "sha256": "5577c662efff1da630a218f27ad87d0c02bf9727d7fc821c15e5b386418edd6c",
+  "bytes": 26876
+}

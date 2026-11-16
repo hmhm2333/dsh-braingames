@@ -101,7 +101,7 @@ export class RegularsSession{
   commit(meal,reason){
     const v=this.visit,record=this.pool.find(p=>p.guest===v.guest),correct=meal===v.meal;
     const errorType=correct?null:reason==='timeout'?'timeout':meal===record.previousMeal?'old-preference':this.pool.some(p=>p!==record&&p.meal===meal)?'other-guest':'other-choice';
-    const out={visitId:v.id,guest:v.guest,ordered:v.meal,chosen:meal,correct,reason,errorType,responseMs:this.responseElapsedMs,kind:v.kind,independent:v.kind==='recall'&&!record.reviewed,teaching:v.stage!=='regular',gapVisits:v.gapVisits,sincePreviousResponseMs:record.lastResponseMs===null?null:this.clockMs-record.lastResponseMs};
+    const out={visitId:v.id,atMs:this.clockMs,level:v.level,guest:v.guest,ordered:v.meal,chosen:meal,correct,reason,errorType,responseMs:this.responseElapsedMs,kind:v.kind,independent:v.kind==='recall'&&!record.reviewed,teaching:v.stage!=='regular',gapVisits:v.gapVisits,sincePreviousResponseMs:record.lastResponseMs===null?null:this.clockMs-record.lastResponseMs};
     if(reason==='timeout'){this.stats.missed++;v.motion.departureMs=v.motion.withdrawalMs;}
     else{this.stats.served++;if(!correct)v.motion.departureMs=v.motion.rejectionMs;}
     if(!correct){this.stats.mistakes++;this.stats.errors[errorType]++;this.resetWindow();if(this.lives===0){this.finishRequested=true;this.endReason='mistakes';this.survivalEndMs=this.clockMs;}}

@@ -1,6 +1,6 @@
 import {createMoveHandle} from '../../runtime/move-handle.mjs';
 import {RECOVERY_MS} from '../../runtime/presentation.mjs';
-import {GAME_COPY, SHARED_COPY} from '../../runtime/game-catalog.mjs';
+import {createGameLanguage} from '../../runtime/game-language.mjs';
 import {applyCopy} from '../../runtime/apply-copy.mjs';
 import {mountControlGuide} from '../../runtime/control-guide.mjs';
 import {mountGameRecords} from '../../runtime/game-records.mjs';
@@ -8,7 +8,6 @@ import {createPixelText} from '../../runtime/pixel-text.mjs';
 import {FISH_HIT_GRACE_MS, FishSchool, MIN_VIEW, clampActor} from './core.mjs';
 import {HIT_HALF_HEIGHT, HIT_HALF_WIDTH, Scene, drawRuleArt, hitsFish, loadMotion} from './scene.mjs';
 
-const copy = GAME_COPY['fish-leap'];
 const positionKey = 'braingames.fish-leap.position.v1';
 const MAX_FRAME_GAP_MS = 250;
 const hide = (element, value) => { if (element.hidden !== value) element.hidden = value; };
@@ -36,6 +35,7 @@ async function source(file) {
 }
 
 export function mountGame(host, options) {
+  const language=createGameLanguage('fish-leap',options);
   const shadow = host.attachShadow({mode: 'open'});
   const style = document.createElement('style');
   const root = document.createElement('main');
@@ -87,7 +87,7 @@ export function mountGame(host, options) {
     hide(whale, !show);
     if (whale.hasAttribute('data-game-resume') !== resume) {
       whale.toggleAttribute('data-game-resume', resume);
-      whale.title = resume ? SHARED_COPY.freezeHint : SHARED_COPY.moveHint;
+      whale.title = resume ? language.shared.freezeHint : language.shared.moveHint;
       whale.setAttribute('aria-label', whale.title);
       whale.tabIndex = resume ? 0 : -1;
     }
@@ -103,7 +103,7 @@ export function mountGame(host, options) {
       button.className = 'fish';
       if (live) {
         button.dataset.fish = item.id;
-        button.setAttribute('aria-label', '捞这条金鱼');
+        button.setAttribute('aria-label', language.text('scoop','捞这条金鱼'));
       } else button.dataset.fishEffect = item.id;
       controls.append(button);
       entry = {button};
@@ -159,10 +159,10 @@ export function mountGame(host, options) {
     syncFish(scene.draw(school, Boolean(drag)));
     const {lives, effects, capture, netRemaining} = school;
     const netReady = !capture && netRemaining === 0;
-    const net = capture ? copy.netCasting : netReady ? copy.netReady : copy.netCooling;
+    const net = capture ? language.game.netCasting : netReady ? language.game.netReady : language.game.netCooling;
     const atLoss = effects.some(effect => effect.kind === 'evolution');
-    setText($('round-status'), (atLoss ? copy.netLoss : '') +
-      copy.lives.replace('{lives}', lives) + net + '。' + (copy.feedback[school.reaction] ?? ''));
+    setText($('round-status'), (atLoss ? language.game.netLoss : '') +
+      language.game.lives.replace('{lives}', lives) + net + '。' + (language.game.feedback[school.reaction] ?? ''));
   }
 
   function redraw() {
@@ -185,6 +185,7 @@ export function mountGame(host, options) {
       if (current !== 'error') scene.drawLobby($('companion'), current === 'finished');
       if (current === 'finished') {
         const seconds = Math.floor(school.frozenAt / 1000);
+        options.onPracticeResult?.({score: seconds, level: school.tier + 1});
         if (seconds > best) {
           best = records.saveScore(bestKey, seconds);
         }
@@ -305,7 +306,7 @@ export function mountGame(host, options) {
         height = nextHeight;
         scene.resize(width, height);
         if (saved) {
-          school = new FishSchool(width, height, {netOffsets, saved});
+          school = new FishSchool(width, height, {netOffsets, saved, onPracticeDecision: options.onPracticeDecision});
           saved = null;
         } else school?.resize(width, height);
       } else if (scene.scale !== Math.min(1.5, devicePixelRatio)) scene.resize(width, height);
@@ -333,14 +334,25 @@ export function mountGame(host, options) {
     redraw();
   }
 
+  function applyLanguage(){
+    language.apply(root);
+    applyCopy(root, {'#rule-a': language.game.ruleCatch, '#fish-wait': language.game.ruleWait, '#fish-instruction': language.game.ruleNote,
+      '#fish-rules-access': language.game.ruleAccess, '#start': language.game.start, '#unit': language.game.resultUnit, '#best-unit': language.game.resultUnit});
+    mountControlGuide(root,language.game,language.shared);
+    $('move-whale').title = language.shared.moveHint;
+    $('move-whale').setAttribute('aria-label', language.shared.moveHint);
+    $('rule-light-loss').setAttribute('aria-label', language.game.ruleLampLoss);
+    records?.setCopy(language.shared);
+  }
   async function start() {
     if (pending || !ready || small || !canReplay || !['welcome', 'finished'].includes(view())) return;
     pending = true;
     updateInputs();
     try {
       if (!await options.beforePlay() || !presented || disposed || small) return;
+      if (language.selectNext()) applyLanguage();
       const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-      school = new FishSchool(width, height, {tier: initialTier, seed, netOffsets});
+      school = new FishSchool(width, height, {tier: initialTier, seed, netOffsets, onPracticeDecision: options.onPracticeDecision});
       if (position) Object.assign(school.actor, clampActor(position.x * width, position.y * height, width, height));
       redraw();
       schedule();
@@ -350,6 +362,7 @@ export function mountGame(host, options) {
   }
 
   async function present({resume = true, start: directStart = false} = {}) {
+    if (view() === 'welcome' && language.selectNext()) applyLanguage();
     if (playing() && resume && !presented) recovery = performance.now() + RECOVERY_MS;
     presented = true;
     pixelText.present();
@@ -367,15 +380,11 @@ export function mountGame(host, options) {
     document.fonts.add(font);
     style.textContent = css;
     root.innerHTML = html;
-    $('move-whale').title = SHARED_COPY.moveHint;
-    $('move-whale').setAttribute('aria-label', SHARED_COPY.moveHint);
-    $('rule-light-loss').setAttribute('aria-label', copy.ruleLampLoss);
-    applyCopy(root, {'#rule-a': copy.ruleCatch, '#fish-wait': copy.ruleWait, '#fish-instruction': copy.ruleNote,
-      '#fish-rules-access': copy.ruleAccess, '#start': copy.start, '#unit': copy.resultUnit, '#best-unit': copy.resultUnit});
-    mountControlGuide(root, copy);
+    applyLanguage();
     records = mountGameRecords(root, '#welcome', '#result');
+    records.setCopy(language.shared);
     if (initialTier) {
-      setText($('practice'), '第 ' + (initialTier + 1) + ' 档试玩');
+      setText($('practice'), language.text('practice','第 {level} 档试玩').replace('{level}',initialTier + 1));
       hide($('practice'), false);
     }
     drawRuleArt($('rule-scoop'), $('rule-evolve'), $('rule-light-loss'), art);
@@ -427,7 +436,7 @@ export function mountGame(host, options) {
     snapshot: () => ({view: view(), ready, presented, viewportBlocked: small, rafPending: raf !== null,
       recovering: Boolean(recovery), relocating: Boolean(drag), best, errors: [...errors], session: school?.checkpoint().state ?? null,
       viewport: {width, height}}),
-    checkpoint: () => !ready || errors.length ? null : saved ?? school?.checkpoint() ?? null,
+    checkpoint: () => !ready || errors.length ? null : saved ?? (school ? {...school.checkpoint(), language: language.id} : null),
     setFrozen(value) { frozen = value; if (ready) updateWhale(); },
     setAvailability(next) { canReplay = next.canReplay; canRandom = next.canRandom; updateInputs(); },
     paintStatic: redraw,

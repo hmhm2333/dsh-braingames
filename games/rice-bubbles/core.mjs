@@ -63,7 +63,8 @@ export function createSession({seed=1,sequence=null,checkpoint=null}={}){
     if(current.wrapped)stats[value==='bubble_pass'?'wrappedPassed':'wrappedMistakes']++;
     const lostLife=['bubble_mistake','food_mistake','rice_miss'].includes(value);
     if(lostLife){lives--;if(lives===0){settlementAtMs=current.nextAtMs;survivalEndMs=clockMs;}}
-    emit('outcome',{outcome:value,kind:current.kind,material:current.material,foodId:current.foodId,wrapped:current.wrapped,nextAtMs:current.nextAtMs});
+    emit('outcome',{outcome:value,kind:current.kind,material:current.material,foodId:current.foodId,wrapped:current.wrapped,nextAtMs:current.nextAtMs,
+      level:current.level,responseMs:current.responded?clockMs-current.onsetMs:null});
     if(value==='rice_caught'){
       bowlFill++;
       if(bowlFill===6){current.mealReady=true;current.mealFormAtMs=current.deadlineMs;current.mealCollectAtMs=current.mealFormAtMs+MEAL_PRESENTATION.storedMs;current.nextAtMs=Math.max(current.nextAtMs,current.mealFormAtMs+MEAL_PRESENTATION.durationMs);emit('meal_ready',{bowlFill});}

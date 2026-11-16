@@ -4,6 +4,8 @@
 
 <p>等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。</p>
 
+<p><strong>简体中文</strong> · <a href="./README.en.md" lang="en">English</a></p>
+
 <p>
   <a href="#安装"><img src="assets/readme/badge-dsh.svg" alt="DeepSeek Harness 0.2.2-rc.1" /></a>
   <a href="https://github.com/hmhm2333/dsh-braingames/blob/HEAD/LICENSE.txt"><img src="assets/readme/badge-mit.svg" alt="MIT License" /></a>
@@ -46,12 +48,12 @@
 
 ## 安装
 
-当前插件版本为 `1.0.0`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。
+当前插件版本为 `1.1.0`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。
 
 在 DSH「插件」中选择「添加插件」，安装源选择「npm 官方源」，填入以下包名。 [npm 包页面](https://www.npmjs.com/package/dsh-braingames)
 
 ```text
-dsh-braingames@1.0.0
+dsh-braingames@1.1.0
 ```
 
 已配置 `dsh` 命令时，可复制对应的一条。
@@ -59,25 +61,25 @@ dsh-braingames@1.0.0
 **桌面客户端**（使用客户端登记的 `dsh` 命令）
 
 ```bash
-dsh plugin --profile desktop add dsh-braingames@1.0.0
+dsh plugin --profile desktop add dsh-braingames@1.1.0
 ```
 
 **独立 Web**
 
 ```bash
-dsh plugin --profile web add dsh-braingames@1.0.0
+dsh plugin --profile web add dsh-braingames@1.1.0
 ```
 
-也可以在同一入口粘贴 GitHub 安装包地址。 [发行说明](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.0.0)
+也可以在同一入口粘贴 GitHub 安装包地址。 [发行说明](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.1.0)
 
 ```text
-https://github.com/hmhm2333/dsh-braingames/releases/download/v1.0.0/dsh-braingames-1.0.0.tgz
+https://github.com/hmhm2333/dsh-braingames/releases/download/v1.1.0/dsh-braingames-1.1.0.tgz
 ```
 
 也可以添加固定版本的 Git 地址。
 
 ```text
-git+https://github.com/hmhm2333/dsh-braingames.git#v1.0.0
+git+https://github.com/hmhm2333/dsh-braingames.git#v1.1.0
 ```
 
 安装后进入会话，点击**任务标题栏中文件按钮左侧的游戏图标**即可开局。空闲时也能手动打开。
@@ -98,6 +100,8 @@ Git 安装使用仓内已构建的 `lib/`。本地构建更新源码后应重新
 
 设置入口位于 **DSH「插件」页面 → `dsh-braingames` 详情页**。
 
+游戏跟随 DSH 的界面语言。切换语言时，本局和结算保留原语言，下一局使用新语言。
+
 | 选项 | 行为与数据说明 |
 | --- | --- |
 | **游戏池** | 仅从勾选的游戏中开始新局。勾选至少两款后，可在结算时换另一款。 |
@@ -109,6 +113,8 @@ Git 安装使用仓内已构建的 `lib/`。本地构建更新源码后应重新
 模型推荐最多发送最近 10 个主对话标题（每条最多 64 个 UTF-16 代码单元），可能计费。开局最多等 5 秒，没拿到推荐就随机。结算后「换个玩玩」始终在本地随机。
 
 最高分保存在当前设备的客户端或浏览器中。暂停与刷新续局遵循上方设置。
+
+插件详情下方的「查看个人榜」显示各游戏当前规则下的前 10 局成绩。1.0.0 的最高分仍显示在游戏结算页。展开「记录备份」可导出或恢复本机逐局成绩和压缩判定记录，重复导入会跳过已有记录。
 
 ## 为什么做认知训练
 

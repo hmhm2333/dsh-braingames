@@ -1,8 +1,7 @@
-import {GAME_COPY,SHARED_COPY} from '../../runtime/game-catalog.mjs';
+import {createGameLanguage} from '../../runtime/game-language.mjs';
 import {applyCopy} from '../../runtime/apply-copy.mjs';
 import {mountControlGuide} from '../../runtime/control-guide.mjs';
 import {mountGameRecords} from '../../runtime/game-records.mjs';
-const copy=GAME_COPY['rice-bubbles-g10'];
 import {createSession} from './core.mjs';
 import {FOOD_TYPES} from './rules.mjs';
 import {WhaleScene} from './scene.mjs';
@@ -12,13 +11,14 @@ import {createPixelText} from '../../runtime/pixel-text.mjs';
 import {RECOVERY_MS,playableSize} from '../../runtime/presentation.mjs';
 
 export function mountGame(host,options={}){
+const language=createGameLanguage('rice-bubbles-g10',options);
 if(!(host instanceof HTMLElement))throw TypeError('Game host must be an HTMLElement');
 const shadow=host.attachShadow({mode:'open'}),ui=options.ui;
 const styleLink=document.createElement(ui?'style':'link');
 const styleReady=ui?Promise.resolve():new Promise((resolve,reject)=>{styleLink.onload=resolve;styleLink.onerror=()=>reject(Error('游戏样式加载失败'));});
 if(ui)styleLink.textContent=ui.style;else{styleLink.rel='stylesheet';styleLink.href=new URL('./style.css',import.meta.url).href;}shadow.append(styleLink);
 const pixelFace=new FontFace('Whale G10 Pixel',ui?ui.fontBytes:'url("'+new URL('./ui/song-subset.ttf',import.meta.url).href+'")',{weight:'400',style:'normal'});
-const root=document.createElement('main');root.id='experience';root.className='game-root';root.dataset.view='loading';root.innerHTML='<section class="paper status-panel" role="status"><h1>'+copy.loading+'</h1><span class="loading-mark" aria-hidden="true"><i></i><i></i><i></i></span></section>';shadow.append(root);
+const root=document.createElement('main');root.id='experience';root.className='game-root';root.dataset.view='loading';root.innerHTML='<section class="paper status-panel" role="status"><h1>'+language.game.loading+'</h1><span class="loading-mark" aria-hidden="true"><i></i><i></i><i></i></span></section>';shadow.append(root);
 let frozenVisible=false,pixelText=null,scene=null,disposedSnapshot=null,disposePromise=null,playPending=false,markupLoaded=false;
 const sound=new GameAudio();
 let session=null,view='loading',raf=null,lobbyTimer=null,lastWall=null,lobbyClock=0,externalAttention=false,disposed=false,ready=false;
@@ -49,15 +49,16 @@ function handleEvents(){
   for(const e of session.drainEvents()){
     log(e);const s=session.snapshot();
     if(e.type==='item_spawn')scene.setItem(e.item);
-    if(e.type==='picky_intro'){scene.introPicky(e.atMs);announce(copy.pickyHint.replace('{food}',FOOD_TYPES.find(food=>food.id===e.foodId).label));}
+    if(e.type==='picky_intro'){scene.introPicky(e.atMs);announce(language.game.pickyHint.replace('{food}',(language.text('foods',null)?.[e.foodId]??FOOD_TYPES.find(food=>food.id===e.foodId).label)));}
     if(e.type==='outcome'){
+      options.onPracticeDecision?.(e);
       if(e.outcome!=='interrupted')session.schedulePresentation(scene.react(e.outcome,s));
-      announce(copy.feedback[e.outcome]);
+      announce(language.game.feedback[e.outcome]);
     }
     if(e.type==='life_lost'&&e.lives===0)session.scheduleSettlement(scene.failureEndAt(s.clockMs));
     if(e.type==='meal_ready')session.scheduleMeal(scene.mealStartAt(s));
     if(e.type==='meal_form_start')scene.scheduleMeal(s,e.atMs);
-    if(e.type==='meal_collected'){scene.collectMeal(e.atMs);announce(copy.feedback.meal);}
+    if(e.type==='meal_collected'){scene.collectMeal(e.atMs);announce(language.game.feedback.meal);}
     if(e.type==='finish'&&view==='playing')showResult();
   }
 }
@@ -103,6 +104,7 @@ async function startGame(){
     if(disposed||!presented||externalAttention||isSmall()||view!==requestedView)return false;
     await sound.unlock();
     if(disposed||!presented||externalAttention||isSmall()||view!==requestedView)return false;
+    if(language.selectNext())applyLanguage();
     session=createSession({seed:qaSeed??nextSeed(),sequence:qaSequence});qaFrozen=false;recoveryUntil=0;delete root.dataset.recovering;
     lobbyClock=0;scene.ready(0,0);
     setView('playing');session.start();handleEvents();
@@ -133,9 +135,24 @@ async function resumeGame(){
     $('scene-root').focus({preventScroll:true});render();recover();options.onViewChange?.('playing');return true;
   }catch(error){fail(error);return false;}finally{playPending=false;}
 }
+function applyLanguage(){
+  language.apply(root);
+  applyCopy(root,{'#loading-panel h1':language.game.loading,'#start-button span':language.game.start,'#result-panel .survival-result>span':language.game.resultUnit,
+    '#catch-label':language.game.rules.catch,'#skip-label':language.game.rules.skip,'#rice-input-rule':language.game.ruleNote});
+  mountControlGuide(root,language.game,language.shared);
+  $('scene-root').setAttribute('aria-label',language.game.title);
+  const resume=$('resume-whale');
+  if(resume){resume.title=language.shared.freezeHint;resume.setAttribute('aria-label',resume.title);}
+  records?.setCopy(language.shared);
+}
 function showResult(){
   cancelLoop();sound.stop();const s=session.snapshot();
   const seconds=Math.floor(s.survivedMs/1000);
+  const {bubbleMistakes,riceMissed,foodMistakes}=s.stats,correct=s.progression.correctTotal;
+  options.onPracticeResult?.({
+    score:seconds,level:s.current?.level??s.progression.nextLevel,
+    correct,attempts:correct+bubbleMistakes+riceMissed+foodMistakes
+  });
   if(seconds>bestSeconds)bestSeconds=qa?seconds:records.saveScore(bestKey,seconds);
   $('elapsed-value').textContent=seconds;$('best-value').textContent=bestSeconds;
   lobbyClock=0;scene.ready(s.bowlFill,0);setView('finished');render();runLoop();$('again-button').focus({preventScroll:true});
@@ -189,6 +206,7 @@ function preview(reason='preview'){
 }
 async function present({resume=true,start=false}={}){
   if(disposed)return false;presented=true;root.dataset.presented='true';pixelText?.present();if(!ready)return false;
+  if(view==='welcome'&&language.selectNext())applyLanguage();
   const drawn=scene.layoutSnapshot();
   if(drawn.width!==host.clientWidth||drawn.height!==host.clientHeight)scene.layout(view);
   updateStart();
@@ -197,9 +215,9 @@ async function present({resume=true,start=false}={}){
   if(view==='paused'){paintStatic();return true;}
   render();runLoop();$(view==='welcome'?'start-button':view==='finished'?'again-button':view==='error'?'reload-button':'scene-root').focus({preventScroll:true});return true;
 }
-function checkpoint(){if(!ready||!session||view==='error')return null;return{version:3,view,lobbyClock,session:session.checkpoint(),scene:scene.checkpoint()};}
+function checkpoint(){if(!ready||!session||view==='error')return null;return{version:3,language:language.id,view,lobbyClock,session:session.checkpoint(),scene:scene.checkpoint()};}
 function setFrozen(active){
-  frozenVisible=active;const button=$('resume-whale');if(!button||!ready)return;button.hidden=!active;button.title=SHARED_COPY.freezeHint;
+  frozenVisible=active;const button=$('resume-whale');if(!button||!ready)return;button.hidden=!active;button.title=language.shared.freezeHint;
   if(active)for(const [name,value]of Object.entries(scene.characterBounds()))button.style[name]=value+'px';
 }
 function snapshot(){if(disposed)return structuredClone(disposedSnapshot);return{view,ready,disposed,presented,recovering:recoveryUntil!==0,viewportBlocked:isSmall(),loading:scene?.loadPhase??'ui',session:session?.snapshot()??null,scene:ready?scene.metrics():null,feedback:root?.querySelector('#feedback')?.hidden===false?$('feedback').textContent:null,attention:externalAttention,sound:sound.enabled,audioActive:sound.active.size,rafPending:raf!==null,lobbyTimerPending:lobbyTimer!==null,frameTimes:[...frameTimes],errors:[...errors],events:structuredClone(logs)};}
@@ -217,13 +235,12 @@ const initialization=(async()=>{
  try{
   const [text]=await Promise.all([ui?ui.markup:fetch(new URL('./markup.html',import.meta.url)).then(response=>{if(!response.ok)throw Error(`游戏界面加载失败 (${response.status})`);return response.text();}),pixelFace.load(),styleReady]);
   if(disposed)return false;const template=document.createElement('template');template.innerHTML=text;root.replaceChildren(...template.content.firstElementChild.childNodes);markupLoaded=true;
-  applyCopy(root,{'#loading-panel h1':copy.loading,'#start-button span':copy.start,'#result-panel .survival-result>span':copy.resultUnit,
-    '#catch-label':copy.rules.catch,'#skip-label':copy.rules.skip,'#rice-input-rule':copy.ruleNote});
-  mountControlGuide(root,copy);
+  applyLanguage();
   records=mountGameRecords(root,'#welcome-panel','#result-panel');
+  records.setCopy(language.shared);
   document.fonts.add(pixelFace);pixelText=createPixelText(root);root.dataset.font='loaded';
   for(const img of root.querySelectorAll('img[src]'))img.src=ui?ui.icons[img.getAttribute('src')]:new URL(img.getAttribute('src'),import.meta.url).href;
-  const resumeButton=document.createElement('button');resumeButton.id='resume-whale';resumeButton.type='button';resumeButton.hidden=true;resumeButton.dataset.gameResume='';resumeButton.tabIndex=0;resumeButton.title=SHARED_COPY.freezeHint;resumeButton.setAttribute('aria-label',resumeButton.title);Object.assign(resumeButton.style,{position:'absolute',border:'none',padding:'0',background:'transparent',cursor:'pointer',zIndex:'12'});root.append(resumeButton);
+  const resumeButton=document.createElement('button');resumeButton.id='resume-whale';resumeButton.type='button';resumeButton.hidden=true;resumeButton.dataset.gameResume='';resumeButton.tabIndex=0;resumeButton.title=language.shared.freezeHint;resumeButton.setAttribute('aria-label',resumeButton.title);Object.assign(resumeButton.style,{position:'absolute',border:'none',padding:'0',background:'transparent',cursor:'pointer',zIndex:'12'});root.append(resumeButton);
   on(resumeButton,'pointerdown',event=>event.preventDefault());on(resumeButton,'click',event=>{event.preventDefault();if(frozenVisible)void options.onResume();});
   scene=new WhaleScene($('scene-root'),{assetsBase:options.assetsBase??new URL('./assets/g10/',import.meta.url),manifest:options.manifest,loadAtlas:options.loadAtlas,bounds:()=>({width:host.clientWidth,height:host.clientHeight})});
 on($('start-button'),'click',startGame);on($('again-button'),'click',startGame);
@@ -245,7 +262,7 @@ const observer=new ResizeObserver(()=>{
 });observer.observe(host);listeners.push(()=>observer.disconnect());
 
   for(const kind of ['rice','bubble','wrapped','picky'])paintLegend($(kind+'-legend'),kind);
-  $('scene-root').setAttribute('aria-label',copy.title);
+  $('scene-root').setAttribute('aria-label',language.game.title);
   if(!qa)bestSeconds=records.readScore(bestKey);
   await scene.init();
   if(disposed)return false;
@@ -258,7 +275,7 @@ const observer=new ResizeObserver(()=>{
     if(view==='welcome'||view==='finished')scene.layout(view);
     render();
   }else setView('welcome');updateStart();if(presented)runLoop();else pixelText.suspend();return true;
- }catch(error){if(!disposed){if(markupLoaded)fail(error);else{errors.push(error.stack??String(error));view='error';root.dataset.view='error';root.replaceChildren();const panel=document.createElement('section');panel.className='paper dialog-panel';const title=document.createElement('h2');title.textContent=SHARED_COPY.loadedError;const reload=document.createElement('button');reload.id='reload-button';reload.className='primary';reload.textContent=SHARED_COPY.reload;on(reload,'click',()=>{void options.onReload().catch(fail);});panel.append(title,reload);root.append(panel);console.error(error);}}return false;}
+ }catch(error){if(!disposed){if(markupLoaded)fail(error);else{errors.push(error.stack??String(error));view='error';root.dataset.view='error';root.replaceChildren();const panel=document.createElement('section');panel.className='paper dialog-panel';const title=document.createElement('h2');title.textContent=language.shared.loadedError;const reload=document.createElement('button');reload.id='reload-button';reload.className='primary';reload.textContent=language.shared.reload;on(reload,'click',()=>{void options.onReload().catch(fail);});panel.append(title,reload);root.append(panel);console.error(error);}}return false;}
 })();
 return {ready:initialization,snapshot,pause:pauseGame,resume:resumeGame,suspend,present,preview,paintStatic,finish:finishGame,
   getRunState:()=>({view,hasRound:session!==null}),

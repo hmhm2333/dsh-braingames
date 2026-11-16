@@ -95,8 +95,10 @@ export class FishSchool {
     tier = 0,
     netOffsets,
     saved,
+    onPracticeDecision,
   }) {
     this.netOffsets = netOffsets;
+    this.onPracticeDecision = onPracticeDecision;
     for (const [name, salt] of Object.entries(RANDOM_STREAMS)) this[name] = createRandom(seed, salt);
     if (saved) {
       this.restore(saved);
@@ -223,6 +225,7 @@ export class FishSchool {
     };
     this.readyAt = this.capture.end + NET_CD_MS;
     this.updateActor();
+    this.recordDecision(fish, 'scoop', this.time - fish.born, 0);
     return true;
   }
 
@@ -255,13 +258,21 @@ export class FishSchool {
     this.effects = this.effects.filter(effect => this.time < effect.at + effect.duration);
   }
 
+  recordDecision(fish, outcome, responseMs, cooldownMs) {
+    this.onPracticeDecision?.({atMs: this.time, level: this.tier + 1, outcome, responseMs,
+      fishId: fish.id, kind: fish.evolves ? 'evolving' : 'ordinary', cooldownMs});
+  }
+
   resolveDepartures() {
     const expired = this.fish.filter(fish => !fish.locked && fish.deadline === this.time);
     for (const fish of expired) {
       this.fish.splice(this.fish.indexOf(fish), 1);
       const duration = fish.evolves ? EVOLUTION_ANIMATION_MS : DEPARTURE_ANIMATION_MS;
       this.effects.push({...fish, kind: fish.evolves ? 'evolution' : 'leave', at: this.time, duration});
-      if (fish.evolves) this.lives -= 1;
+      if (fish.evolves) {
+        this.lives -= 1;
+        this.recordDecision(fish, 'miss', null, this.netRemaining);
+      }
       if (this.lives === 0) {
         this.phase = 'settling';
         this.frozenAt = this.time;

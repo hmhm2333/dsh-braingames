@@ -77,12 +77,14 @@ export function createRecordStore(onChange = () => {}, getStorage = () => localS
 
 export function mountGameRecords(root, ...panelSelectors) {
   const notices = [];
+  let copy = SHARED_COPY;
   const store = createRecordStore(update);
   function update() {
     const {damaged, unavailable} = store.status();
-    const message = unavailable ? SHARED_COPY.storageUnavailable : damaged ? SHARED_COPY.badRecord : '';
+    const message = unavailable ? copy.storageUnavailable : damaged ? copy.badRecord : '';
     for (const {notice, text, clear} of notices) {
       if (text.textContent !== message) text.textContent = message;
+      if (clear.textContent !== copy.clearRecord) clear.textContent = copy.clearRecord;
       clear.hidden = !damaged || unavailable;
       notice.hidden = message === '';
     }
@@ -95,7 +97,6 @@ export function mountGameRecords(root, ...panelSelectors) {
     notice.hidden = true;
     text.setAttribute('role', 'status');
     clear.type = 'button';
-    clear.textContent = SHARED_COPY.clearRecord;
     clear.addEventListener('click', () => {
       const panel = notice.parentElement;
       store.clearDamaged();
@@ -106,5 +107,5 @@ export function mountGameRecords(root, ...panelSelectors) {
     notices.push({notice, text, clear});
   }
   update();
-  return store;
+  return {...store, setCopy(next) { copy = next; update(); }};
 }

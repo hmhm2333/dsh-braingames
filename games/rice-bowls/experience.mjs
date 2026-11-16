@@ -1,9 +1,8 @@
-import {GAME_COPY,SHARED_COPY} from '../../runtime/game-catalog.mjs';
+import {createGameLanguage,scoreUnit} from '../../runtime/game-language.mjs';
 import {applyCopy} from '../../runtime/apply-copy.mjs';
 import {mountControlGuide} from '../../runtime/control-guide.mjs';
-const copy=GAME_COPY['regulars-g04'];
 import {RegularsSession,MAX_MISTAKES,RESPONSE_MS} from './regulars-core.mjs';
-import {ServiceScene,loadSprites,guestName,mealName} from './service-scene.mjs';
+import {ServiceScene,loadSprites,guestName as chineseGuestName,mealName as chineseMealName} from './service-scene.mjs';
 import {menuSlot,orderCueRect,viewportLayout} from './layout.mjs';
 import {PLACEMENT_KEY,placementBounds,clampAnchor} from './placement.mjs';
 import {mountGameRecords} from '../../runtime/game-records.mjs';
@@ -14,8 +13,9 @@ import {RECOVERY_MS,playableSize} from '../../runtime/presentation.mjs';
 const GUEST_NAME_MS=800;
 
 export function mountGame(host,options={}){
+  const language=createGameLanguage('regulars-g04',options);
   if(!(host instanceof HTMLElement))throw TypeError('Game host must be an HTMLElement');
-  const shadow=host.attachShadow({mode:'open'}),root=document.createElement('main');root.id='game';root.className='stage';root.dataset.phase='loading';root.setAttribute('aria-label',copy.title);
+  const shadow=host.attachShadow({mode:'open'}),root=document.createElement('main');root.id='game';root.className='stage';root.dataset.phase='loading';root.setAttribute('aria-label',language.game.title);
   const style=document.createElement(options.ui?'style':'link');
   const styleReady=options.ui?Promise.resolve():new Promise((resolve,reject)=>{style.onload=resolve;style.onerror=()=>reject(Error('游戏样式加载失败'));});
   if(options.ui)style.textContent=options.ui.style;else{style.rel='stylesheet';style.href=new URL('./service.css',import.meta.url).href;}
@@ -31,6 +31,8 @@ let frozenVisible=false,frozenDragged=false,session,sprites,scene,pixelText,time
 let preferredPlacement=null,dragAnchor=null,dragOrigin=null,relocating=false,dragPreview=false,moveFrame=null,moveGesture=null,dragSurface=null,placementGeometry=null,dragGeometry=null,sessionSeed=0,layoutPhase=null,handleKey='';
 const listeners=[];
 const seed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
+const guestName=id=>language.text('guests',null)?.[id]??chineseGuestName(id);
+const mealName=id=>language.text('meals',null)?.[id]??chineseMealName(id);
 function on(target,event,fn,options){target.addEventListener(event,fn,options);listeners.push(()=>target.removeEventListener(event,fn,options));}
 function canvas(w,h,label){const c=document.createElement('canvas');c.width=w;c.height=h;c.setAttribute('role','img');c.setAttribute('aria-label',label);return c;}
 function textLabel(text){const span=document.createElement('span');span.dataset.pixelText='';span.textContent=text;return span;}
@@ -51,8 +53,8 @@ function stop(){if(timer!==null)clearTimeout(timer);if(raf!==null)cancelAnimatio
 function showError(error){
   console.error(error);errors.push(error.message);stop();cancelMoveFrame();dragSurface?.end();moveGesture?.cancel();root.dataset.phase='error';pixelText?.suspend();
   const box=document.createElement('section');box.className='window status-dialog';box.setAttribute('role','alert');
-  const title=textLabel(SHARED_COPY.loadedError),reload=document.createElement('button');
-  reload.id='reload';reload.className='primary';reload.append(textLabel(SHARED_COPY.reload));
+  const title=textLabel(language.shared.loadedError),reload=document.createElement('button');
+  reload.id='reload';reload.className='primary';reload.append(textLabel(language.shared.reload));
   on(reload,'click',()=>{void options.onReload().catch(showError);});box.append(title,reload);
   root.replaceChildren(box);pixelText?.present();pixelText?.flush();reload.focus({preventScroll:true});options.onViewChange?.('error');
 }
@@ -65,7 +67,7 @@ function updateResponse(){
   const remaining=canRespond?session.responseRemainingMs:0,seconds=Math.ceil(remaining/1000),width=Math.ceil(56*remaining/RESPONSE_MS)+'px';
   if($('response').dataset.seconds!==String(seconds)){
     $('response').dataset.seconds=String(seconds);$('response').dataset.urgency=seconds<=1?'last':seconds<=2?'soon':'calm';
-    $('response').setAttribute('aria-label',`剩余${seconds}秒`);$('response-seconds').textContent=String(seconds);
+    $('response').setAttribute('aria-label',language.text('secondsLeft','剩余{seconds}秒').replace('{seconds}',seconds));$('response-seconds').textContent=String(seconds);
   }
   if($('response-fill').style.width!==width)$('response-fill').style.width=width;
 }
@@ -77,15 +79,20 @@ function updateUI(force=false){
   for(const id of ['welcome','summary','loading'])$(id).hidden=id!==s.phase;
   const phaseChanged=layoutPhase!==s.phase;
   if(phaseChanged){layoutPhase=s.phase;fitStage();}
-  const handle=$('move-whale'),moveHint=frozenVisible?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
+  const handle=$('move-whale'),moveHint=frozenVisible?language.shared.freezeHint:language.shared.moveHint;
   handle.setAttribute('aria-label',moveHint);handle.title=moveHint;
   $('menu').hidden=s.phase!=='running';
   $('lives').hidden=s.phase!=='running';
-  $('lives').setAttribute('aria-label',SHARED_COPY.chancesLeft.replace('{lives}',s.lives));
+  $('lives').setAttribute('aria-label',language.shared.chancesLeft.replace('{lives}',s.lives));
   if(s.service&&s.service.outcome.visitId!==announcedVisit){
     const out=s.service.outcome;announcedVisit=out.visitId;
-    const {feedback}=copy,guest=guestName(out.guest);
-    const tail=s.lives?SHARED_COPY.chancesLeft.replace('{lives}',s.lives):feedback.last.replace('{max}',MAX_MISTAKES);
+    options.onPracticeDecision?.({
+      atMs:out.atMs,level:out.level,guest:out.guest,kind:out.kind,outcome:out.errorType??'correct',
+      responseMs:out.reason==='timeout'?null:out.responseMs,gapVisits:out.gapVisits,independent:out.independent,
+      ordered:out.ordered,chosen:out.chosen,teaching:out.teaching
+    });
+    const {feedback}=language.game,guest=guestName(out.guest);
+    const tail=s.lives?language.shared.chancesLeft.replace('{lives}',s.lives):feedback.last.replace('{max}',MAX_MISTAKES);
     $('announcement').textContent=out.reason==='timeout'?feedback.timeout+tail:out.correct?feedback.correct.replace('{guest}',guest):feedback.wrong.replace('{guest}',guest)+tail;
   }
   for(const [i,heart] of [...$('lives').children].entries())heart.dataset.lost=String(i>=s.lives);
@@ -101,7 +108,7 @@ function updateUI(force=false){
   $('order').hidden=!order;
   if(order){
     const name=guestName(order.guest);
-    $('order').setAttribute('aria-label',showMeal?`${name}要${mealName(order.meal)}`:name);
+    $('order').setAttribute('aria-label',showMeal?language.text('request','{guest}要{dish}').replace('{guest}',name).replace('{dish}',mealName(order.meal)):name);
     $('order').dataset.kind=order.kind;
     const caption=$('order-caption');
     caption.style.visibility=showName?'visible':'hidden';
@@ -115,13 +122,17 @@ function updateUI(force=false){
   }else{$('order').removeAttribute('aria-label');$('order-label').textContent='';$('order-icon').removeAttribute('src');}
   const front=s.visit?.guest;
   $('front-name').hidden=!front||s.phase!=='running';
-  if(front){$('front-name').textContent=`先给${guestName(front)}`;$('menu').setAttribute('aria-label',`给${guestName(front)}上菜`);}
-  else $('menu').setAttribute('aria-label','选一份，上菜');
+  if(front){const name=guestName(front);$('front-name').textContent=language.text('first','先给{guest}').replace('{guest}',name);$('menu').setAttribute('aria-label',language.text('serve','给{guest}上菜').replace('{guest}',name));}
+  else $('menu').setAttribute('aria-label',language.text('choose','选一份，上菜'));
   if(s.phase==='summary'){
     if(phaseChanged&&presented&&canReplay)$('replay').focus({preventScroll:true});
     const customers=s.stats.customersServed;
+    if(phaseChanged)options.onPracticeResult?.({
+      score:customers,level:session.levelIndex+1,correct:s.stats.correct,attempts:s.stats.recallAttempts
+    });
     if(customers>bestCustomers)bestCustomers=options.qa?customers:records.saveScore(bestKey,customers);
     $('customer-value').textContent=customers;$('best-value').textContent=bestCustomers;
+    $('result-unit').textContent=scoreUnit(language.game,customers);$('best-unit').textContent=scoreUnit(language.game,bestCustomers);
   }
 }
 function syncMoveHandle(){
@@ -158,7 +169,7 @@ function serve(meal){
   stop();lastWall=now;updateUI();draw();schedule();
 }
 function createSession(value){sessionSeed=value;return new RegularsSession({seed:value,guestIds:Object.keys(sprites.manifest.guests),planMotion:visit=>scene.planMotion(visit,value)});}
-function replay(){if(!canReplay||!playableSize(root.clientWidth,root.clientHeight))return;clearRecovery();session=createSession(seed());session.start();uiKey='';pointer=null;announcedVisit=0;$('announcement').textContent='';run();}
+function replay(){if(!canReplay||!playableSize(root.clientWidth,root.clientHeight))return;if(language.selectNext())applyLanguage();clearRecovery();session=createSession(seed());session.start();uiKey='';pointer=null;announcedVisit=0;$('announcement').textContent='';run();}
 
 function cancelMoveFrame(){if(moveFrame!==null)cancelAnimationFrame(moveFrame);moveFrame=null;}
 function repositionVisit(){if(session?.visit)session.reposition(scene.planMotion(session.visit,sessionSeed,session.visit.motion.lane));}
@@ -199,14 +210,22 @@ function syncMenu(){
   fitStage();
 }
 function availability(){if(!session)return;const small=!playableSize(root.clientWidth,root.clientHeight);$('start').disabled=!canReplay||small;$('replay').disabled=!canReplay||small;$('random').hidden=!options.onRandom;$('random').disabled=!canRandom;}
+  function applyLanguage(){
+    language.apply(root);
+    applyCopy(root,{'#welcome .rule:first-child>span':language.game.rules[0],'#welcome .rule:last-child>span':language.game.rules[1],
+    '#order-rules-access':language.game.ruleAccess,'#start span':language.game.start,'#score-label':language.game.scoreLabel,
+    '#result-unit':language.game.resultUnit,'#best-unit':language.game.resultUnit,'#loading p':language.game.loading});
+    mountControlGuide(root,language.game,language.shared);
+    root.setAttribute('aria-label', language.game.title);
+    records?.setCopy(language.shared);
+    menuKey='';handleKey='';
+  }
 async function init(){
   const markup=options.ui?options.ui.markup:await (async()=>{const response=await fetch(new URL('./service-markup.html',import.meta.url));if(!response.ok)throw Error('游戏界面加载失败 ('+response.status+')');return response.text();})();
   root.innerHTML=markup;
-  applyCopy(root,{'#welcome .rule:first-child>span':copy.rules[0],'#welcome .rule:last-child>span':copy.rules[1],
-    '#order-rules-access':copy.ruleAccess,'#start span':copy.start,'#score-label':copy.scoreLabel,
-    '#result-unit':copy.resultUnit,'#best-unit':copy.resultUnit,'#loading p':copy.loading});
-  mountControlGuide(root,copy);
+  applyLanguage();
   records=mountGameRecords(root,'#welcome .window-body','#summary .window-body');
+  records.setCopy(language.shared);
   await styleReady;await pixelFace.load();document.fonts.add(pixelFace);pixelText=createPixelText(root);
   sprites=await loadSprites({manifest:options.manifest,loadAtlas:options.loadAtlas});
   if(disposed)return false;
@@ -227,7 +246,7 @@ async function init(){
   });
   $('move-whale').dataset.gameResume='';
   on($('move-whale'),'click',event=>{if(!frozenVisible)return;event.preventDefault();event.stopImmediatePropagation();if(frozenDragged){frozenDragged=false;return;}void options.onResume();},true);
-  on($('start'),'click',async()=>{if(!canReplay||!playableSize(root.clientWidth,root.clientHeight))return;if(options.beforePlay&&!await options.beforePlay())return;if(session.start())run();});
+  on($('start'),'click',async()=>{if(!canReplay||!playableSize(root.clientWidth,root.clientHeight))return;if(options.beforePlay&&!await options.beforePlay())return;if(language.selectNext())applyLanguage();if(session.start())run();});
   on($('menu'),'click',event=>{const button=event.target.closest('button[data-meal]');if(button)serve(button.dataset.meal);});
   on($('replay'),'click',replay);
   on($('random'),'click',()=>{if(canRandom)void options.onRandom().catch(showError);});
@@ -258,16 +277,17 @@ function suspend(reason='background'){
 async function present({resume:continueRound=true,start=false}={}){
   if(disposed)return false;await initialization;presented=true;pixelText?.present();
   if(errors.length){pixelText?.flush();$('reload').focus({preventScroll:true});return true;}
+  if(runView()==='welcome'&&language.selectNext())applyLanguage();
   const resuming=continueRound&&session.phase==='paused';
   clearRecovery();fitStage();repositionVisit();
   if(start&&session.phase==='welcome'&&canReplay&&playableSize(root.clientWidth,root.clientHeight))session.start();else if(resuming)session.resume();
   availability();run();if(resuming)recover();return true;
 }
-function checkpoint(){if(!ready||errors.length)return null;return{version:1,seed:sessionSeed,session:session.checkpoint(),placement:preferredPlacement,announcedVisit,viewport:{width:root.clientWidth,height:root.clientHeight}};}
+function checkpoint(){if(!ready||errors.length)return null;return{version:1,language:language.id,seed:sessionSeed,session:session.checkpoint(),placement:preferredPlacement,announcedVisit,viewport:{width:root.clientWidth,height:root.clientHeight}};}
 function setFrozen(active){
   frozenVisible=active;frozenDragged=false;
   const button=$('move-whale');if(!button)return;
-  button.title=active?SHARED_COPY.freezeHint:SHARED_COPY.moveHint;
+  button.title=active?language.shared.freezeHint:language.shared.moveHint;
   button.setAttribute('aria-label',button.title);
   button.tabIndex=active?0:-1;
 }
