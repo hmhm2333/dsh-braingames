@@ -54,6 +54,20 @@
 dsh-braingames@1.0.0
 ```
 
+已配置 `dsh` 命令时，可复制对应的一条。
+
+**桌面客户端**（使用客户端登记的 `dsh` 命令）
+
+```bash
+dsh plugin --profile desktop add dsh-braingames@1.0.0
+```
+
+**独立 Web**
+
+```bash
+dsh plugin --profile web add dsh-braingames@1.0.0
+```
+
 也可以在同一入口粘贴 GitHub 安装包地址。 [发行说明](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.0.0)
 
 ```text
