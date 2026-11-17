@@ -206,7 +206,7 @@ function nextPuzzle(position, level, random, serial, fixedTarget, relaxed = fals
 }
 
 export class ScreenFlight {
-  constructor({seed = 0, saved} = {}) {
+  constructor({seed = 0, saved, startStars = 0} = {}) {
     this.random = createRandom(seed);
     if (saved) {
       if (saved.version !== 2 && saved.version !== 3) throw Error('摘星存档版本无效');
@@ -228,7 +228,8 @@ export class ScreenFlight {
       }
       return;
     }
-    this.state = {position: {...START}, stars: 0, hearts: 3, serial: 0};
+    if (!Number.isSafeInteger(startStars) || startStars < 0) throw RangeError('起始星数须是非负整数');
+    this.state = {position: {...START}, stars: startStars, hearts: 3, serial: 0};
     this.#deal();
   }
 

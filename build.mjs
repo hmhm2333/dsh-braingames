@@ -4,18 +4,22 @@ import {dirname,resolve,relative,basename} from 'node:path';
 import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 import {packAtlases} from './pack-atlases.mjs';
+import {GAME_REGISTRY,assetDirectory,assertTranslation,catalogSource,gameChunk,rankingKey,readGameInputs} from './game-registry.mjs';
 
 const root=dirname(fileURLToPath(import.meta.url)),project=root,out=resolve(root,'lib');
 const readText=async file=>(await readFile(file,'utf8')).replaceAll('\r\n','\n');
+const catalog=catalogSource();
+const zh=JSON.parse(await readText(resolve(root,'locale/zh.json')));
+const en=JSON.parse(await readText(resolve(root,'locale/en.json')));
+assertTranslation(zh,en,'plugin locale');
+const ruleFingerprints=Object.fromEntries(GAME_REGISTRY.map(game=>[game.id,rankingKey(game)]));
 await mkdir(out,{recursive:true});
-await writeFile(resolve(out,'catalog.mjs'),await readText(resolve(project,'runtime/game-catalog.mjs')));
-const {publicManifest,GAME_ASSET_FIELDS}=await import('./release-contract.mjs');
-const game=resolve(project,'games/rice-bubbles');
+await writeFile(resolve(out,'catalog.mjs'),catalog);
 const packageInfo=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'));
 
 // Small compiler for this finite set of authored, dependency-free ESM files.
 // Each module retains its closure; unknown syntax or externals fail the build.
-async function compile(entry,{pixi=false,sources}={}){
+async function compile(entry,{pixi=false}={}){
   const definitions=[],seen=new Set(),visiting=new Set(),moduleExports=new Map();
   async function visit(file){
     const sourceId=relative(project,file).replaceAll('\\','/');
@@ -24,7 +28,6 @@ async function compile(entry,{pixi=false,sources}={}){
     if(visiting.has(id))throw Error('Circular build import '+id);
     if(seen.has(id))return id;seen.add(id);visiting.add(id);
     const input=await readText(file);
-    sources?.set(sourceId,input);
     let source=input.replaceAll('__BRAINGAMES_VERSION__',JSON.stringify(packageInfo.version)),imports=[];
     for(const m of source.matchAll(/^import (.+?) from ['"](.+?)['"];?\s*$/gm)){
       const [line,binding,path]=m;let expression;
@@ -54,105 +57,116 @@ async function compile(entry,{pixi=false,sources}={}){
   const id=await visit(entry);
   return'const __defs=Object.create(null),__cache=Object.create(null);const __get=id=>__cache[id]??(__cache[id]=__defs[id]());\n'+definitions.join('\n')+'\nconst __entry=__get('+JSON.stringify(id)+');\n';
 }
-// These exact UI-localized sources use the same rules as the prior version.
-// Any further edit to the hashed game sources must earn equivalence separately.
-const localizedRuleEquivalents = {
-  'rice-bubbles-g10': ['zldfocfsZpnZ0Z9tqMtvwW0wmCMTyixgNlvrPtXLQ_c', 'gnsqce20dLaYd8ciO62T8vV1K_0Vy_hafwPsCC10b00'],
-  'regulars-g04': ['p-uAB2C9LYmLq8FkuJd_ykP36OU2iP_PYeGqCfxIguk', '5DwN3iVetMXLzJXBdXIov30qqW4JM5vc-T7rzwXeqGQ'],
-  'planks-g02': ['b0yeY7NDtyvOD6TM96nAHu040kMcq1_A4X8AZ9LYqeM', 'oyNDvVULoiBGXdtYOk9mW47YaKnDtS4fz9XXq1jLkF8'],
-  'balloon-winds': ['cyv4QfypGQn6SgbuchARH4zwT4yYgshObzncC2NqqN8', 'MThBfs100DVQ1ifQSC9u-xmkoVoLpo06nJHp0heNR9A'],
-  'fish-leap': ['RoYfLNRrUWiiMrOSfz5F7oJph6lgijtNV9zKGYjTI6Q', '5bAeI_hDFc1C2cxFXMHmVn_niQ_HjmYOb3xsP26pIhw']
-};
-const ruleFingerprints={};
-async function compileGame(directory,gameId,options={}){
-  const sources=new Map();
-  const code=await compile(resolve(directory,'dsh-stage.mjs'),{...options,sources});
-  const folder=relative(project,directory).replaceAll('\\','/')+'/';
-  const gameSources=[...sources].filter(([id])=>id.startsWith(folder)||id==='runtime/random-state.mjs');
-  gameSources.sort(([left],[right])=>left<right?-1:left>right?1:0);
-  const fingerprint=createHash('sha256').update(JSON.stringify(gameSources)).digest('base64url');
-  const equivalent=localizedRuleEquivalents[gameId];
-  ruleFingerprints[gameId]=equivalent?.[0]===fingerprint?equivalent[1]:fingerprint;
-  return code;
+const resources = [];
+const sizes = {};
+let packingReport;
+function addImageResource(name, bytes, sha256 = createHash('sha256').update(bytes).digest('hex')) {
+  resources.push({name, type: 'image/png', bytes: bytes.length, sha256});
 }
 
-const {manifest,report:packingReport}=await packAtlases(resolve(project,'assets/g10'),resolve(out,'assets'));
-const ui={markup:await readText(resolve(game,'markup.html')),style:await readText(resolve(game,'style.css')),font:(await readFile(resolve(game,'ui/song-subset.ttf'))).toString('base64'),icons:{}};
-ui.icons['./ui/icons/clock.svg']='data:image/svg+xml;base64,'+Buffer.from(await readText(resolve(game,'ui/icons/clock.svg'))).toString('base64');
-let pixi=await readText(resolve(project,'vendor/pixi.mjs'));
-pixi=pixi.replace(/\/\/# sourceMappingURL=.*$/gm,'').replace(/export \{([^}]+)\};/g,(_,names)=>'return {'+names.split(',').map(s=>{const p=s.trim().split(/\s+as\s+/);return p.length===2?p[1]+':'+p[0]:p[0];}).join(',')+'};');
-pixi=pixi.replaceAll('import.meta.url',"'braingames:/pixi.mjs'");
-const gameCode=await compileGame(game,'rice-bubbles-g10',{pixi:true});
-const gameBundle="// Generated; PixiJS 8.14.1 MIT. See THIRD_PARTY_NOTICES.md.\nwindow.__ModuleLoader__.load({id:'dsh-braingames/client.game.js',factory:require=>{\nconst __pixi=(()=>{\n"+pixi+'\n})();\n'+gameCode+'\nconst ui='+JSON.stringify(ui)+';\nconst manifest='+JSON.stringify(manifest)+';\nreturn {mountBundledStage(container,options){return __entry.mountStage(container,{...options,ui:{...ui,fontBytes:Uint8Array.from(atob(ui.font),c=>c.charCodeAt(0)).buffer},manifest,loadAtlas:async name=>{const r=await options.loadResource(name);if(r.type!=="image/png"||!ArrayBuffer.isView(r.bytes))throw Error("角色资源格式无效");return createImageBitmap(new Blob([r.bytes],{type:r.type}),{premultiplyAlpha:"none"});}});}};\n}});\n';
-new vm.Script(gameBundle);await writeFile(resolve(out,'client.game.js'),gameBundle);
-const g04=resolve(project,'games/rice-bowls');
-const regulars=publicManifest(JSON.parse(await readFile(resolve(g04,'assets/sprites.json'),'utf8')),GAME_ASSET_FIELDS.g04);
-const regularBytes=await readFile(resolve(g04,'assets/sprites.png'));
-const regularHash=createHash('sha256').update(regularBytes).digest('hex');
-const regularImage='g04/'+regularHash.slice(0,20)+'.png';
-await mkdir(resolve(out,'assets/g04'),{recursive:true});await writeFile(resolve(out,'assets',regularImage),regularBytes);
-regulars.image=regularImage;
-const regularUI={markup:await readText(resolve(g04,'service-markup.html')),style:await readText(resolve(g04,'service.css')),font:(await readFile(resolve(g04,'ui/song-subset.ttf'))).toString('base64'),mealImages:{}};
-for(const [id,file]of Object.entries(regulars.mealImages))regularUI.mealImages[id]='data:image/png;base64,'+(await readFile(resolve(g04,'assets',file.split('?')[0]))).toString('base64');
-const regularCode=await compileGame(g04,'regulars-g04');
-const regularBundle="// Generated G04; 2D pixel sprites and bundled font, no Pixi or live 3D.\nwindow.__ModuleLoader__.load({id:'dsh-braingames/client.g04.js',factory:require=>{\n"+regularCode+'\nconst ui='+JSON.stringify(regularUI)+';\nconst manifest='+JSON.stringify(regulars)+';\nreturn {mountBundledStage(container,options){return __entry.mountStage(container,{...options,ui:{...ui,fontBytes:Uint8Array.from(atob(ui.font),c=>c.charCodeAt(0)).buffer},manifest,loadAtlas:async name=>{const r=await options.loadResource(name);if(r.type!=="image/png"||!ArrayBuffer.isView(r.bytes))throw Error("像素资源格式无效");return createImageBitmap(new Blob([r.bytes],{type:r.type}),{premultiplyAlpha:"none"});}});}};\n}});\n';
-new vm.Script(regularBundle);await writeFile(resolve(out,'client.g04.js'),regularBundle);
-const g02=resolve(project,'games/ship-planks');
-const planks=publicManifest(JSON.parse(await readFile(resolve(g02,'assets/whale.json'),'utf8')),GAME_ASSET_FIELDS.g02);
-const plankBytes=await readFile(resolve(g02,'assets/whale.png'));
-const plankHash=createHash('sha256').update(plankBytes).digest('hex');
-const plankImage='g02/'+plankHash.slice(0,20)+'.png';
-await mkdir(resolve(out,'assets/g02'),{recursive:true});await writeFile(resolve(out,'assets',plankImage),plankBytes);planks.image=plankImage;
-const plankUI={markup:await readText(resolve(g02,'markup.html')),style:await readText(resolve(g02,'style.css')),font:(await readFile(resolve(g02,'ui/song-subset.ttf'))).toString('base64')};
-const plankCode=await compileGame(g02,'planks-g02');
-const plankBundle="// Generated G02; static while thinking, compact 2D pixel atlas, no live 3D.\nwindow.__ModuleLoader__.load({id:'dsh-braingames/client.g02.js',factory:require=>{\n"+plankCode+'\nconst ui='+JSON.stringify(plankUI)+';\nconst manifest='+JSON.stringify(planks)+';\nreturn {mountBundledStage(container,options){return __entry.mountStage(container,{...options,ui:{...ui,fontBytes:Uint8Array.from(atob(ui.font),c=>c.charCodeAt(0)).buffer},manifest,loadAtlas:async name=>{const r=await options.loadResource(name);if(r.type!=="image/png"||!ArrayBuffer.isView(r.bytes))throw Error("像素资源格式无效");return createImageBitmap(new Blob([r.bytes],{type:r.type}),{premultiplyAlpha:"none"});}});}};\n}});\n';
-new vm.Script(plankBundle);await writeFile(resolve(out,'client.g02.js'),plankBundle);
-async function buildMotionGame(folder, key) {
-  const directory = resolve(project, 'games', folder);
-  const motion = publicManifest(JSON.parse(await readFile(resolve(directory, 'assets/motion.json'), 'utf8')), GAME_ASSET_FIELDS[key]);
-  const bytes = await readFile(resolve(directory, 'assets/motion.png'));
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
-  const name = key + '/' + sha256.slice(0, 20) + '.png';
-  await mkdir(resolve(out, 'assets', key), {recursive: true});
-  await writeFile(resolve(out, 'assets', name), bytes);
-  motion.image = name;
+for (const game of GAME_REGISTRY) {
+  const inputs = await readGameInputs(project, game);
   const ui = {
-    markup: await readText(resolve(directory, 'markup.html')),
-    style: await readText(resolve(directory, 'style.css')),
-    font: (await readFile(resolve(directory, 'ui/song-subset.ttf'))).toString('base64'),
+    markup: await readText(resolve(project, inputs.markup)),
+    style: await readText(resolve(project, inputs.style)),
+    font: (await readFile(resolve(project, inputs.font))).toString('base64'),
   };
-  const file = 'client.' + key + '.js';
-  const code = await compileGame(directory, folder);
-  const bundle = "// Generated; 2D animation and bundled font.\nwindow.__ModuleLoader__.load({id:'dsh-braingames/" + file +
-    "',factory:require=>{\n" + code + '\nconst ui=' + JSON.stringify(ui) + ';\nconst manifest=' + JSON.stringify(motion) +
-    ';\nreturn {mountBundledStage(container,options){return __entry.mountStage(container,{...options,ui:{...ui,fontBytes:Uint8Array.from(atob(ui.font),c=>c.charCodeAt(0)).buffer},manifest,loadAtlas:async name=>{const r=await options.loadResource(name);if(r.type!=="image/png"||!ArrayBuffer.isView(r.bytes))throw Error("像素资源格式无效");return createImageBitmap(new Blob([r.bytes],{type:r.type}),{premultiplyAlpha:"none"});}});}};\n}});\n';
-  new vm.Script(bundle);
+  if (inputs.icons.length) {
+    ui.icons = {};
+    for (const [icon, file] of inputs.icons) {
+      ui.icons['./' + icon] = 'data:image/svg+xml;base64,' + Buffer.from(await readText(resolve(project, file))).toString('base64');
+    }
+  }
+  if (inputs.meals?.length) {
+    ui.mealImages = {};
+    for (const [meal, file] of inputs.meals) {
+      ui.mealImages[meal] = 'data:image/png;base64,' + (await readFile(resolve(project, file))).toString('base64');
+    }
+  }
+
+  let manifest = inputs.manifest;
+  let pixiSource = '';
+  if (game.atlas.packed) {
+    const packed = await packAtlases(resolve(project, 'assets/g10'), resolve(out, 'assets'));
+    manifest = packed.manifest;
+    packingReport = packed.report;
+    for (const {image} of manifest.atlases) {
+      addImageResource(image, await readFile(resolve(out, 'assets', image)));
+    }
+    const pixi = (await readText(resolve(project, 'vendor/pixi.mjs')))
+      .replace(/\/\/# sourceMappingURL=.*$/gm, '')
+      .replace(/export \{([^}]+)\};/g, (_, names) => 'return {' + names.split(',').map(name => {
+        const pair = name.trim().split(/\s+as\s+/);
+        return pair.length === 2 ? pair[1] + ':' + pair[0] : pair[0];
+      }).join(',') + '};')
+      .replaceAll('import.meta.url', "'braingames:/pixi.mjs'");
+    pixiSource = 'const __pixi=(()=>{\n' + pixi + '\n})();\n';
+  } else {
+    const bytes = await readFile(resolve(project, inputs.image));
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    const directory = assetDirectory(game);
+    manifest.image = directory + '/' + hash.slice(0, 20) + '.png';
+    await mkdir(resolve(out, 'assets', directory), {recursive: true});
+    await writeFile(resolve(out, 'assets', manifest.image), bytes);
+    addImageResource(manifest.image, bytes, hash);
+  }
+
+  const file = gameChunk(game);
+  const code = await compile(resolve(project, inputs.entry), {pixi: game.atlas.packed});
+  const bundle = '// Generated by build.mjs.\nwindow.__ModuleLoader__.load({id:' + JSON.stringify('dsh-braingames/' + file) +
+    ',factory:require=>{\n' + pixiSource + code + '\nconst ui=' + JSON.stringify(ui) + ';\nconst manifest=' +
+    JSON.stringify(manifest) + ';\n' + [
+      'return {mountBundledStage(container,options){',
+      '  return __entry.mountStage(container,{...options,ui:{...ui,fontBytes:Uint8Array.from(atob(ui.font),c=>c.charCodeAt(0)).buffer},manifest,',
+      '    async loadAtlas(name){',
+      '      const resource=await options.loadResource(name);',
+      '      if(resource.type!=="image/png"||!ArrayBuffer.isView(resource.bytes))throw Error("像素资源格式无效");',
+      '      return createImageBitmap(new Blob([resource.bytes],{type:resource.type}),{premultiplyAlpha:"none"});',
+      '    }});',
+      '}};',
+      '}});',
+    ].join('\n') + '\n';
+  new vm.Script(bundle, {filename: file});
   await writeFile(resolve(out, file), bundle);
-  return {resource: {name, type: 'image/png', bytes: bytes.length, sha256},
-    lazyBytes: Buffer.byteLength(bundle), decodedBytes: motion.atlas[0] * motion.atlas[1] * 4};
+  if (game.atlas.packed) {
+    sizes.lazyBytes = Buffer.byteLength(bundle);
+    sizes.atlasPages = manifest.atlases.length;
+    sizes.atlasDecodedBytes = manifest.atlases.reduce((total, page) => total + page.width * page.height * 4, 0);
+  } else {
+    const [width, height] = manifest.atlas ?? [manifest.width, manifest.height];
+    sizes[game.chunk + 'LazyBytes'] = Buffer.byteLength(bundle);
+    sizes[game.chunk + 'DecodedBytes'] = width * height * 4;
+  }
 }
-const winds = await buildMotionGame('balloon-winds', 'winds');
-const fish = await buildMotionGame('fish-leap', 'fish');
-const popupFont=(await readFile(resolve(root,'ui/popup.ttf'))).toString('base64');
-const latinFont=(await readFile(resolve(root,'ui/latin.ttf'))).toString('base64');
-const hostUiCss=(await readText(resolve(root,'host-ui.css')))
-  .replace('__BRAINGAMES_POPUP_FONT__',popupFont).replace('__BRAINGAMES_LATIN_FONT__',latinFont);
-const entryCode=(await compile(resolve(root,'client-entry.mjs'))).replace('__BRAINGAMES_HOST_UI_CSS__',JSON.stringify(hostUiCss)).replace('__BRAINGAMES_RULES__',JSON.stringify(ruleFingerprints));
-const entryBundle="// Generated by build.mjs; game code and images remain lazy.\nwindow.__ModuleLoader__.load({id:'dsh-braingames',factory:require=>{\n"+entryCode+'\nreturn __entry;\n}});\n';
-new vm.Script(entryBundle);await writeFile(resolve(out,'client.js'),entryBundle);
-await writeFile(resolve(out,'KENNEY-LICENSE.txt'),await readText(resolve(project,'vendor/KENNEY-LICENSE.txt')));
-await writeFile(resolve(out,'FONT-LICENSE.txt'),await readText(resolve(game,'ui/OFL.txt')));
-await writeFile(resolve(out,'PIXI-LICENSE.txt'),await readText(resolve(project,'vendor/PIXI-LICENSE')));
-const resources=[];
-for(const page of manifest.atlases){const bytes=await readFile(resolve(out,'assets',page.image));resources.push({name:page.image,type:'image/png',bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}
-resources.push({name:regularImage,type:'image/png',bytes:regularBytes.length,sha256:regularHash});
-resources.push({name:plankImage,type:'image/png',bytes:plankBytes.length,sha256:plankHash});
-resources.push(winds.resource, fish.resource);
-await writeFile(resolve(out,'resources.json'),JSON.stringify(resources,null,2)+'\n');
-// Only obsolete generated PNGs are removed. Artist sources and other outputs stay untouched.
-const currentImages=new Set(resources.map(resource=>resource.name));
-for(const directory of ['atlas','g04','g02','winds','fish'])for(const file of await readdir(resolve(out,'assets',directory))){
-  if(/^[a-f0-9]{20}\.png$/.test(file)&&!currentImages.has(directory+'/'+file))await unlink(resolve(out,'assets',directory,file));
+
+const popupFont = (await readFile(resolve(root, 'ui/popup.ttf'))).toString('base64');
+const latinFont = (await readFile(resolve(root, 'ui/latin.ttf'))).toString('base64');
+const hostUiCss = (await readText(resolve(root, 'host-ui.css')))
+  .replace('__BRAINGAMES_POPUP_FONT__', popupFont).replace('__BRAINGAMES_LATIN_FONT__', latinFont);
+const entryCode = (await compile(resolve(root, 'client-entry.mjs')))
+  .replace('__BRAINGAMES_HOST_UI_CSS__', JSON.stringify(hostUiCss))
+  .replace('__BRAINGAMES_RULES__', JSON.stringify(ruleFingerprints));
+const entryBundle = '// Generated by build.mjs; game code and images remain lazy.\n' +
+  "window.__ModuleLoader__.load({id:'dsh-braingames',factory:require=>{\n" + entryCode + '\nreturn __entry;\n}});\n';
+new vm.Script(entryBundle, {filename: 'client.js'});
+await writeFile(resolve(out, 'client.js'), entryBundle);
+await writeFile(resolve(out, 'KENNEY-LICENSE.txt'), await readText(resolve(project, 'vendor/KENNEY-LICENSE.txt')));
+await writeFile(resolve(out, 'FONT-LICENSE.txt'), await readText(resolve(project, 'games/rice-bubbles/ui/OFL.txt')));
+await writeFile(resolve(out, 'PIXI-LICENSE.txt'), await readText(resolve(project, 'vendor/PIXI-LICENSE')));
+await writeFile(resolve(out, 'resources.json'), JSON.stringify(resources, null, 2) + '\n');
+
+// Only obsolete generated PNGs in registered asset directories are removed.
+const currentImages = new Set(resources.map(resource => resource.name));
+for (const directory of new Set(GAME_REGISTRY.map(assetDirectory))) {
+  for (const file of await readdir(resolve(out, 'assets', directory))) {
+    if (/^[a-f0-9]{20}\.png$/.test(file) && !currentImages.has(directory + '/' + file)) {
+      await unlink(resolve(out, 'assets', directory, file));
+    }
+  }
 }
-await writeFile(resolve(root,'build-report.json'),JSON.stringify({version:packageInfo.version,rules:ruleFingerprints,packing:packingReport},null,2)+'\n');
-console.log(JSON.stringify({entryBytes:Buffer.byteLength(entryBundle),lazyBytes:Buffer.byteLength(gameBundle),atlasPages:manifest.atlases.length,atlasDecodedBytes:manifest.atlases.reduce((s,p)=>s+p.width*p.height*4,0),g04LazyBytes:Buffer.byteLength(regularBundle),g04DecodedBytes:regulars.decodedBytes,g02LazyBytes:Buffer.byteLength(plankBundle),g02DecodedBytes:planks.width*planks.height*4,windsLazyBytes:winds.lazyBytes,windsDecodedBytes:winds.decodedBytes,fishLazyBytes:fish.lazyBytes,fishDecodedBytes:fish.decodedBytes,imageBytes:resources.reduce((s,r)=>s+r.bytes,0)}));
+await writeFile(resolve(root, 'build-report.json'),
+  JSON.stringify({version: packageInfo.version, rules: ruleFingerprints, packing: packingReport}, null, 2) + '\n');
+console.log(JSON.stringify({
+  entryBytes: Buffer.byteLength(entryBundle), ...sizes,
+  imageBytes: resources.reduce((total, resource) => total + resource.bytes, 0),
+}));

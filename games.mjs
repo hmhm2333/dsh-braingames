@@ -1,4 +1,2 @@
-import {COMPACT_VIEWPORT,GAME_METADATA,STANDARD_VIEWPORT} from './lib/catalog.mjs';
-const chunks={'balloon-winds':'./client.winds.js','regulars-g04':'./client.g04.js','rice-bubbles-g10':'./client.game.js','planks-g02':'./client.g02.js','fish-leap':'./client.fish.js'};
-export const GAME_CATALOG=GAME_METADATA.map(game=>({...game,chunk:chunks[game.id],
-  minimumSize:game.id==='fish-leap'||game.id==='balloon-winds'?COMPACT_VIEWPORT:STANDARD_VIEWPORT}));
+import { GAME_CATALOG } from './lib/catalog.mjs';
+export { GAME_CATALOG };
