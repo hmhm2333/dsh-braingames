@@ -89,7 +89,7 @@ git+https://github.com/hmhm2333/dsh-braingames.git#v1.1.0
 在公开仓库根目录运行以下命令。构建已用 Node.js `22.22.0` 和 npm `10.9.4` 验证。
 
 ```bash
-npm ci --ignore-scripts --legacy-peer-deps
+npm ci --ignore-scripts
 npm run build
 npm pack --ignore-scripts
 ```

@@ -66,16 +66,6 @@
   "engines": {
     "dsh": ">=0.2.2-rc.1"
   },
-  "peerDependencies": {
-    "@deepseek-ai/dsh-client-connection": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-locale": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-session": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-layout": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-plugin-manager": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-shortcuts": ">=0.2.2-rc.1"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hmhm2333/dsh-braingames.git"
