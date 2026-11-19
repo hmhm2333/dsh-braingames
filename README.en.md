@@ -50,12 +50,12 @@ In **Catch Claude-chan!**, the first group arrives together. Watch the ordinary 
 
 ## Install
 
-The current public release is `1.1.0`. It requires **DeepSeek Harness `0.2.2-rc.1` or later** (`>=0.2.2-rc.1`).
+The current public release is `1.2.0`. It requires **DeepSeek Harness `0.2.2-rc.1` or later** (`>=0.2.2-rc.1`).
 
 In DSH, open **Plugins → Add plugin**, select the npm registry, and enter the following package name. [npm package](https://www.npmjs.com/package/dsh-braingames)
 
 ```text
-dsh-braingames@1.1.0
+dsh-braingames@1.2.0
 ```
 
 If you have the `dsh` command configured, choose the command for your client.
@@ -63,25 +63,25 @@ If you have the `dsh` command configured, choose the command for your client.
 **Desktop client** (use the `dsh` command registered by the client)
 
 ```bash
-dsh plugin --profile desktop add dsh-braingames@1.1.0
+dsh plugin --profile desktop add dsh-braingames@1.2.0
 ```
 
 **Standalone Web**
 
 ```bash
-dsh plugin --profile web add dsh-braingames@1.1.0
+dsh plugin --profile web add dsh-braingames@1.2.0
 ```
 
-You can also paste the GitHub package URL into **Add plugin**. [Release notes](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.1.0)
+You can also paste the GitHub package URL into **Add plugin**. [Release notes](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.2.0)
 
 ```text
-https://github.com/hmhm2333/dsh-braingames/releases/download/v1.1.0/dsh-braingames-1.1.0.tgz
+https://github.com/hmhm2333/dsh-braingames/releases/download/v1.2.0/dsh-braingames-1.2.0.tgz
 ```
 
 Or use the Git URL pinned to the same version.
 
 ```text
-git+https://github.com/hmhm2333/dsh-braingames.git#v1.1.0
+git+https://github.com/hmhm2333/dsh-braingames.git#v1.2.0
 ```
 
 After installing, open a conversation and click the **game icon to the left of the file button in the task header**. You can start a game while idle, too.
@@ -117,6 +117,17 @@ Model recommendations may send up to 10 recent main conversation titles, up to 6
 Best scores are stored in the client or browser on this device. The options above control pausing and resuming after a refresh.
 
 **View personal bests** shows each game's top 10 scores for its current rules. Best scores from 1.0.0 still appear on the results screen. Open **Record backup** to export or restore local round scores and compressed decision records. Import skips records you already have.
+
+### Agent challenge
+
+A colleague suggested a slightly unforgiving rule. **Miss the score goal, and your next task has to wait.** The ship repair game defaults to **60 planks**. Finish with **59**, and new tasks are paused. Meet the goal in whatever game you play next, or turn the challenge off to resume.
+
+The switch is at the bottom of the `dsh-braingames` plugin details page and is off by default. Every game has an adjustable target. The other defaults are 30 café orders, 150 seconds in Rice & Bubbles, 20 balloon stars, and 150 seconds in the goldfish game.
+
+- **Current DSH** pauses sending in DSH while running tasks continue. Your draft stays in the input box. Click the locked box to open a centered pixel-art window with the last score and its target.
+- **Connected agents on this device** also covers connected clients on Windows, including Codex desktop and CLI, Claude Code, and Cursor. When you submit a new task, their hooks check the challenge status with the running DSH instance.
+
+Select **Connect** to add the BrainGames hook alongside any existing hooks in the client's user configuration. For Codex, trust the entry whose command includes `agent-submit-hook.mjs` in **Settings → Hooks** on desktop or `/hooks` in the CLI. Submit a test task in that client, then select **Refresh connection status** in the plugin. **Hook ran successfully** confirms that DSH received the check.
 
 ## Why cognitive training?
 

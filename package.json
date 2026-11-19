@@ -1,6 +1,6 @@
 {
   "name": "dsh-braingames",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "MIT",
   "homepage": "https://github.com/hmhm2333/dsh-braingames",
   "description": "等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。",
@@ -15,6 +15,9 @@
   },
   "files": [
     "host.mjs",
+    "agent-challenge.mjs",
+    "agent-hook-config.mjs",
+    "agent-submit-hook.mjs",
     "resources.mjs",
     "games.mjs",
     "cordis.patch.yml",
@@ -24,11 +27,7 @@
     "THIRD_PARTY_NOTICES.md",
     "LICENSE.txt",
     "lib/client.js",
-    "lib/client.game.js",
-    "lib/client.g04.js",
-    "lib/client.g02.js",
-    "lib/client.winds.js",
-    "lib/client.fish.js",
+    "lib/client.*.js",
     "lib/resources.json",
     "lib/assets/**/*.png",
     "lib/FONT-LICENSE.txt",
@@ -41,10 +40,11 @@
     "build": "node build.mjs"
   },
   "devDependencies": {
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "~3.18.5"
+    "@deepseek-ai/schemastery": "~3.18.5",
+    "jsonc-parser": "3.3.1"
   },
   "dsh": {
     "client": {

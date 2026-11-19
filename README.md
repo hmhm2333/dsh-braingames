@@ -48,12 +48,12 @@
 
 ## 安装
 
-当前插件版本为 `1.1.0`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。
+当前插件版本为 `1.2.0`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。
 
 在 DSH「插件」中选择「添加插件」，安装源选择「npm 官方源」，填入以下包名。 [npm 包页面](https://www.npmjs.com/package/dsh-braingames)
 
 ```text
-dsh-braingames@1.1.0
+dsh-braingames@1.2.0
 ```
 
 已配置 `dsh` 命令时，可复制对应的一条。
@@ -61,25 +61,25 @@ dsh-braingames@1.1.0
 **桌面客户端**（使用客户端登记的 `dsh` 命令）
 
 ```bash
-dsh plugin --profile desktop add dsh-braingames@1.1.0
+dsh plugin --profile desktop add dsh-braingames@1.2.0
 ```
 
 **独立 Web**
 
 ```bash
-dsh plugin --profile web add dsh-braingames@1.1.0
+dsh plugin --profile web add dsh-braingames@1.2.0
 ```
 
-也可以在同一入口粘贴 GitHub 安装包地址。 [发行说明](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.1.0)
+也可以在同一入口粘贴 GitHub 安装包地址。 [发行说明](https://github.com/hmhm2333/dsh-braingames/releases/tag/v1.2.0)
 
 ```text
-https://github.com/hmhm2333/dsh-braingames/releases/download/v1.1.0/dsh-braingames-1.1.0.tgz
+https://github.com/hmhm2333/dsh-braingames/releases/download/v1.2.0/dsh-braingames-1.2.0.tgz
 ```
 
 也可以添加固定版本的 Git 地址。
 
 ```text
-git+https://github.com/hmhm2333/dsh-braingames.git#v1.1.0
+git+https://github.com/hmhm2333/dsh-braingames.git#v1.2.0
 ```
 
 安装后进入会话，点击**任务标题栏中文件按钮左侧的游戏图标**即可开局。空闲时也能手动打开。
@@ -115,6 +115,17 @@ Git 安装使用仓内已构建的 `lib/`。本地构建更新源码后应重新
 最高分保存在当前设备的客户端或浏览器中。暂停与刷新续局遵循上方设置。
 
 插件详情下方的「查看个人榜」显示各游戏当前规则下的前 10 局成绩。1.0.0 的最高分仍显示在游戏结算页。展开「记录备份」可导出或恢复本机逐局成绩和压缩判定记录，重复导入会跳过已有记录。
+
+### Agent 挑战
+
+同事出了个有点刁钻的点子。**这把没达标，下一条任务就得等等。** 比如补船的默认目标是 **60 块船板**，结算 **59 块**就会暂停接收新任务。再玩一局，达到那款游戏的目标就恢复。也可以随时关闭挑战。
+
+开关在 `dsh-braingames` 插件详情页的最下方，默认关闭。每款游戏的目标都能单独调。其余默认目标是上菜 30 单、接饭 150 秒、热气球 20 颗星、捞金鱼 150 秒。
+
+- **当前 DSH** 会锁住发送，已经在跑的任务照常继续。草稿会保留，点一下输入框就会弹出居中的像素窗口，显示刚才那局的成绩和目标。
+- **本机已接入的 Agent** 在 Windows 上还能管到已接入的 Codex（桌面端和 CLI）、Claude Code 和 Cursor。这些客户端在提交新任务时，通过钩子向正在运行的 DSH 查成绩是否达标。
+
+点客户端旁的「一键接入」就能把 BrainGames 钩子加到配置里，已有钩子会保留。Codex 需要在「设置 → Hooks」（CLI 用 `/hooks`）信任命令里带 `agent-submit-hook.mjs` 的那条。接着在客户端试提交一次，再回到插件点「刷新接入状态」。看到「已验证钩子运行」，就表示 DSH 收到了这次检查。
 
 ## 为什么做认知训练
 

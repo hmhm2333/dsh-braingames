@@ -3,14 +3,14 @@ import {createReadinessTracker,createStateSnapshot,readRows} from './task-state.
 import {createTaskAttentionMonitor} from './task-attention.mjs';
 import {createGameRuntime} from './runtime/session-runtime.mjs';
 import {GAME_CATALOG} from './games.mjs';
-import {BACKUP_WORDS, SETTINGS_WORDS, localizedGameCopy, pluginLanguage, sharedWords} from './ui-copy.mjs';
+import {BACKUP_WORDS, CHALLENGE_WORDS, SETTINGS_WORDS, localizedGameCopy, pluginLanguage, sharedWords} from './ui-copy.mjs';
 import {createRefreshStore} from './runtime/refresh-store.mjs';
 import {createPracticeStore} from './practice-store.mjs';
 import {createPracticeWriter} from './practice-writer.mjs';
 import {PracticePanel} from './practice-panel.mjs';
-import {GameIcon,GameSettings,PixelPopup,SETTINGS_FIELDS} from './host-ui.mjs';
+import {AgentChallengeSettings,ChallengePopup,GameIcon,GameSettings,PixelPopup,SETTINGS_FIELDS} from './host-ui.mjs';
 
-export const inject=['slots','sessions','uiSession','connection','remote','shortcuts','configForms','locale'];
+export const inject=['slots','sessions','uiSession','conversation','connection','remote','shortcuts','configForms','locale'];
 const h=React.createElement,PACKAGE='dsh-braingames';
 const hostUiCss=__BRAINGAMES_HOST_UI_CSS__;
 const practiceRules=__BRAINGAMES_RULES__;
@@ -34,7 +34,9 @@ export function apply(ctx){
     refresh();
   }
   const practiceWriter=createPracticeWriter({store:practiceRecords,onChange:practiceChanged});
-  let hasRunning=false,preferencesReady=false,preferenceSignature='',saving=false,settingsError='',returnFocus=null;
+  let hasRunning=false,preferencesReady=false,preferenceSignature='',saving=false,settingsError='',editedField='',returnFocus=null;
+  let challenge=null,challengeError=false,challengeNotice=false,challengePreferences='',challengeSync=Promise.resolve();
+  const hookConnections=new Map();
   let currentSessionId=null,refreshStore=null,bootSettled=false,bootError='',resumeError=false,bootstrapJob=null,viewportFailure=null;
   const canFit=game=>!container||(
     container.clientWidth>=game.minimumSize.width&&container.clientHeight>=game.minimumSize.height);
@@ -124,18 +126,116 @@ export function apply(ctx){
           h('button',{'data-braingames-accept':true,type:'button',onClick:()=>run(()=>api.open())},pixelLabel(shared.inviteAccept)),
           h('button',{'data-braingames-dismiss':true,type:'button',onClick:()=>runtime.dismissInvitation()},pixelLabel(shared.inviteDismiss)))):null);
   }
+  const challengeEnabled=()=>{
+    const scope=preferences.getSnapshot().value?.agentChallengeScope;
+    return scope==='dsh'||scope==='local';
+  };
+  const challengeLocked=()=>challengeEnabled()&&challenge?.locked===true;
+  function setChallengeNotice(open){
+    if(challengeNotice===open)return;
+    challengeNotice=open;refresh();
+  }
+  function ChallengeComposer({sessionId}){
+    React.useSyncExternalStore(store.subscribe,store.getSnapshot);
+    const anchor=React.useRef(null);
+    const locked=challengeLocked(),copy=CHALLENGE_WORDS[language];
+    React.useLayoutEffect(()=>{
+      if(!locked)return;
+      const card=anchor.current.closest('[data-composer-card]');
+      const openFromInput=event=>{
+        if(!event.composedPath().some(node=>node.hasAttribute?.('data-composer-input')))return;
+        event.preventDefault();
+        event.stopPropagation();
+        setChallengeNotice(true);
+      };
+      card.addEventListener('click',openFromInput,true);
+      const blocks=ctx.conversation.blocks,state=blocks.storeFor(sessionId),ours={reason:copy.inputLocked};
+      const block=()=>{if(state.getSnapshot()===undefined)blocks.set(sessionId,ours);};
+      const stop=state.subscribe(block);
+      block();
+      return()=>{
+        card.removeEventListener('click',openFromInput,true);
+        stop();
+        if(state.getSnapshot()===ours)blocks.set(sessionId,undefined);
+      };
+    },[sessionId,locked,copy]);
+    return locked?h('span',{ref:anchor,hidden:true,'data-braingames-challenge-anchor':true}):null;
+  }
   async function savePreference(field,value){
-    saving=true;settingsError='';refresh();
+    editedField=field;saving=true;settingsError='';refresh();
     try{if(!await preferences.set(field,value))throw Error(SETTINGS_WORDS[language].saveFailed);}
     catch(error){console.error('Game settings save failed',error);settingsError=true;}
     finally{saving=false;refresh();}
   }
+  function syncChallenge(record){
+    challengeSync=challengeSync.then(async()=>{
+      if(unloaded)return;
+      try{
+        const response=await fetch(new URL('api/braingames/agent-challenge',document.baseURI),{
+          signal:resourceAbort.signal,...(record?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)}:{})
+        });
+        if(!response.ok)throw Error('BrainGames Agent challenge HTTP '+response.status);
+        const next=await response.json();
+        if(unloaded)return;
+        if(!next.locked||!challengeEnabled())challengeNotice=false;
+        challenge=next;challengeError=false;refresh();
+      }catch(error){
+        if(!unloaded){challengeError=true;console.error(error);refresh();}
+      }
+    });
+    return challengeSync;
+  }
+  function recordPractice(record){
+    practiceWriter.save(record);
+    if(challengeEnabled()){
+      void syncChallenge({gameId:record.gameId,score:record.score,finishedAt:record.finishedAt});
+    }
+  }
+  async function connectAgent(agentId){
+    if(hookConnections.get(agentId)?.pending)return;
+    hookConnections.set(agentId,{pending:true});
+    refresh();
+    const request=()=>fetch(new URL('api/braingames/agent-challenge/connect',document.baseURI),{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agentId}),signal:resourceAbort.signal,
+    });
+    try{
+      let response=await request();
+      if(response.status===404){
+        // The missing route did not reach the installer. Recheck the host before trying once more.
+        await syncChallenge();
+        if(unloaded)return;
+        if(!challengeError&&challenge?.scope==='local'&&!challenge.bridgeError)response=await request();
+        if(response.status===404){
+          hookConnections.set(agentId,{error:'connect-unavailable'});
+          return;
+        }
+      }
+      if(response.headers.get('Content-Type')?.split(';',1)[0]!=='application/json'){
+        throw Error('BrainGames Agent hook HTTP '+response.status);
+      }
+      const receipt=await response.json();
+      if(!response.ok){
+        hookConnections.set(agentId,{error:receipt?.error||'connect-response'});
+      }else{
+        if(receipt?.result!=='installed'&&receipt?.result!=='already-installed')throw Error('Invalid Agent hook installation receipt');
+        hookConnections.set(agentId,{result:receipt.result});
+      }
+    }catch(error){
+      if(!unloaded){console.error('Agent hook installation failed',error);hookConnections.set(agentId,{error:'connect-response'});}
+    }finally{if(!unloaded)refresh();}
+  }
   function PluginDetails(){
     React.useSyncExternalStore(store.subscribe,store.getSnapshot);
+    const state=preferences.getSnapshot();
+    const form={locale:language,catalog:GAME_CATALOG,state,saving,onChange:savePreference};
+    const feedback={saving,error:settingsError};
+    const challengeEdit=editedField==='agentChallengeScope'||editedField==='agentChallengeTargets';
     return h(React.Fragment,null,
-      h(GameSettings,{locale:language,catalog:GAME_CATALOG,state:preferences.getSnapshot(),saving,error:settingsError,onChange:savePreference}),
+      h(GameSettings,{...form,feedback:challengeEdit?null:feedback}),
       h(PracticePanel,{locale:language,catalog:GAME_CATALOG,store:practiceRecords,revision:practiceRevision,rules:practiceRules,
-        storageError:BACKUP_WORDS[language][practiceError],onImported:()=>practiceChanged(null)})
+        storageError:BACKUP_WORDS[language][practiceError],onImported:()=>practiceChanged(null)}),
+      h(AgentChallengeSettings,{...form,feedback:challengeEdit?feedback:null,status:challenge,failed:challengeError,
+        onRefresh:()=>void syncChallenge(),hookConnections,onConnectAgent:connectAgent})
     );
   }
   function StageHost(){
@@ -171,7 +271,10 @@ export function apply(ctx){
         h('div',{className:'braingames-popup-actions'},
           h('button',{'data-braingames-action':true,type:'button',onClick:()=>run(()=>bootError?(resumeError?api.discardSavedRound():api.retryBoot()):api.open())},
             pixelLabel(bootError?(resumeError?shared.discardSavedRound:shared.retry):shared.reload)),
-          h('button',{'data-braingames-action':true,type:'button',onClick:()=>{dismissErrors=true;refresh();}},pixelLabel(shared.inviteDismiss)))):null);
+          h('button',{'data-braingames-action':true,type:'button',onClick:()=>{dismissErrors=true;refresh();}},pixelLabel(shared.inviteDismiss)))):null,
+      challengeNotice&&challengeLocked()&&s.mode!=='foreground'&&!s.loading?h(ChallengePopup,{locale:language,status:challenge,
+        onDismiss:()=>setChallengeNotice(false),
+        onPlay:api.status().ready&&(s.canStart||s.hasRound)?()=>run(()=>api.open()):null}):null);
   }
   const runtime=createGameRuntime({games:GAME_CATALOG,canFit,enabledGameIds:[],autoInvite:false,onChange:refresh,onInputGuardChange:setGuard,
     async chooseGame(candidates,{signal}){
@@ -182,7 +285,7 @@ export function apply(ctx){
       const host=container??await hostReady;if(unloaded)return null;
       const mod=await require.async(game.chunk);if(unloaded)return null;
       return mod.mountBundledStage(host,{...callbacks,practiceRules:practiceRules[game.id],
-        onPracticeRecord:practiceWriter.save,onPracticePart:practiceWriter.savePart,
+        onPracticeRecord:recordPractice,onPracticePart:practiceWriter.savePart,
         getGameCopy:requested=>localizedGameCopy(game.id,requested??language),
         getReturnFocus:()=>returnFocus,onModeChange(mode,reason){
         if(mode==='foreground'){openError='';viewportFailure=null;const baseline=snapshot('activation-baseline');attention.observe(baseline,baseline.readiness.generation);}
@@ -236,6 +339,7 @@ export function apply(ctx){
     status(){return{installed:!unloaded,version:__BRAINGAMES_VERSION__,language,preferencesReady,ready:preferencesReady&&bootSettled&&!bootError,...runtime.status()};},
     diagnostics(){return{...api.status(),taskState:snapshot(),inputGuard:{foreground:guardState.foreground,reserved:guardBindings.length,heldCodes:guardState.heldCodes},stage:runtime.diagnostics().stage,preferences:{status:preferences.getSnapshot().status,value:preferences.getSnapshot().value,writable:preferences.getSnapshot().writable,saving,error:settingsError},error:bootError||openError,restoreFailed:resumeError};},
     async open(options){
+      setChallengeNotice(false);
       if(!await api.ready)throw Error(bootError||'dsh-braingames 设置尚未就绪');
       const baseline=snapshot('activation-baseline');attention.observe(baseline,baseline.readiness.generation);
       const result=await runtime.open(options);
@@ -251,6 +355,7 @@ export function apply(ctx){
   };
   ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'braingames.overlay'},StageHost));
   ctx.slots.inject('conversation.session.header.utilities',()=>ctx.slots.register({name:'conversation.session.header.utilities',id:'braingames.runtime',order:-20},TaskEntry));
+  ctx.slots.inject('conversation.input.overlay',()=>ctx.slots.register({name:'conversation.input.overlay',id:'braingames.challenge'},ChallengeComposer));
   ctx.slots.inject('plugins.bundle.config',()=>ctx.slots.register({name:'plugins.bundle.config',key:PACKAGE},PluginDetails));
   ctx.effect(()=>{
     const cancel=reason=>{const s=runtime.status();if(s.loading&&s.presentation==='active')runtime.background(reason);};
@@ -276,12 +381,21 @@ export function apply(ctx){
     preferencesReady=state.status==='ready';
     if(preferencesReady){
       if(bootSettled&&bootError&&refreshStore===null)api.ready=startBootstrap();
-      const signature=JSON.stringify(state.value);
-      if(signature!==preferenceSignature){preferenceSignature=signature;const value=state.value;runtime.configure({enabledGameIds:value.enabledGames,...Object.fromEntries(SETTINGS_FIELDS.filter(field=>field!=='modelRecommendation').map(field=>[field,value[field]])),recommendByTask:value.modelRecommendation===true});if(!value.keepOnRefresh)refreshStore?.clear();}
+      const value=state.value,signature=JSON.stringify(value);
+      if(signature!==preferenceSignature){preferenceSignature=signature;runtime.configure({enabledGameIds:value.enabledGames,...Object.fromEntries(SETTINGS_FIELDS.filter(field=>field!=='modelRecommendation').map(field=>[field,value[field]])),recommendByTask:value.modelRecommendation===true});if(!value.keepOnRefresh)refreshStore?.clear();}
+      const challengeSignature=JSON.stringify([value.agentChallengeScope,value.agentChallengeTargets]);
+      if(challengeSignature!==challengePreferences){
+        challengePreferences=challengeSignature;
+        if(!challengeEnabled())challengeNotice=false;
+        void syncChallenge();
+      }
     }
     changed('preferences');refresh();
   }
   ctx.effect(()=>preferences.subscribe(syncPreferences),'BrainGames preferences');
+  ctx.effect(()=>ctx.connection.generation.subscribe(()=>{
+    if(preferencesReady&&ctx.connection.generation.getSnapshot())void syncChallenge();
+  }),'BrainGames challenge reconnect');
   ctx.effect(()=>ctx.locale.subscribe(()=>{
     const next=pluginLanguage(ctx.locale.getSnapshot().active);
     if(next===language)return;
