@@ -1,6 +1,6 @@
 {
   "name": "dsh-braingames",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "MIT",
   "homepage": "https://github.com/hmhm2333/dsh-braingames",
   "description": "等 Agent 执行任务时，玩几分钟像素风认知训练小游戏。",
@@ -15,6 +15,9 @@
   },
   "files": [
     "host.mjs",
+    "agent-challenge.mjs",
+    "agent-hook-config.mjs",
+    "agent-submit-hook.mjs",
     "resources.mjs",
     "games.mjs",
     "cordis.patch.yml",
@@ -40,7 +43,8 @@
     "sharp": "0.35.4"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "~3.18.5"
+    "@deepseek-ai/schemastery": "~3.18.5",
+    "jsonc-parser": "3.3.1"
   },
   "dsh": {
     "client": {
@@ -65,12 +69,12 @@
   "peerDependencies": {
     "@deepseek-ai/dsh-client-connection": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-locale": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-session": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-layout": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-shortcuts": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-plugin-manager": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-shortcuts": ">=0.2.2-rc.1"
+    "@deepseek-ai/dsh-client-ui-session": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.1"
   },
   "repository": {
     "type": "git",

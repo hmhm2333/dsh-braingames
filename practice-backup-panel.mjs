@@ -46,7 +46,7 @@ export function PracticeBackup({locale, store, storageError, onImported}) {
     } catch (error) {
       console.error('备份导入失败', error);
       setStatus(error.name === 'QuotaExceededError' ? {key: 'quota'} :
-        {key: 'importFailed', code: error.code, detail: error.message});
+        {key: 'importFailed', code: error.code});
       onImported();
     } finally {
       setBusy(false);
@@ -57,8 +57,8 @@ export function PracticeBackup({locale, store, storageError, onImported}) {
     if (!status) return '';
     if (status.key === 'saved') return copy.saved(status.rounds, status.parts);
     if (status.key === 'importFailed') {
-      if (locale === 'zh') return copy.importFailed + status.detail;
-      if (status.code === 'partial-import') return copy.partial;
+      const message = copy.importErrors[status.code];
+      return typeof message === 'string' ? message : copy.importFailed;
     }
     return copy[status.key];
   }

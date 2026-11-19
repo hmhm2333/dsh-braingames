@@ -4,6 +4,10 @@ const HEADER = {type: 'dsh-braingames-practice', version: 1};
 const MAX_LINE = 1024 * 1024;
 const IMPORT_BATCH = 24;
 
+function backupError(code, message, options) {
+  return Object.assign(new Error(message, options), {code});
+}
+
 async function* backupLines(store) {
   yield HEADER;
   let rounds = 0;
@@ -39,18 +43,18 @@ async function* linesFrom(file) {
       const {value, done} = await reader.read();
       if (done) {
         finished = true;
-        if (buffered) throw Error('备份文件结尾不完整');
+        if (buffered) throw backupError('incomplete', '备份文件结尾不完整');
         break;
       }
       buffered += value;
       let offset = 0;
       for (let end = buffered.indexOf('\n', offset); end !== -1; end = buffered.indexOf('\n', offset)) {
-        if (end - offset > MAX_LINE) throw Error('备份文件中的单条记录过大');
+        if (end - offset > MAX_LINE) throw backupError('line-too-large', '备份文件中的单条记录过大');
         yield buffered.slice(offset, end);
         offset = end + 1;
       }
       buffered = buffered.slice(offset);
-      if (buffered.length > MAX_LINE) throw Error('备份文件中的单条记录过大');
+      if (buffered.length > MAX_LINE) throw backupError('line-too-large', '备份文件中的单条记录过大');
     }
   } finally {
     try {
@@ -71,24 +75,24 @@ async function* checkedEntries(file) {
     try {
       entry = JSON.parse(line);
     } catch (cause) {
-      throw Error('备份文件中的记录无法解析', {cause});
+      throw backupError('invalid-json', '备份文件中的记录无法解析', {cause});
     }
     if (!header) {
-      if (entry?.type !== HEADER.type || entry.version !== HEADER.version) throw Error('备份文件版本不支持');
+      if (entry?.type !== HEADER.type || entry.version !== HEADER.version) throw backupError('unsupported-version', '备份文件版本不支持');
       header = true;
     } else if (ended) {
-      throw Error('备份文件结尾有多余记录');
+      throw backupError('trailing-records', '备份文件结尾有多余记录');
     } else if (entry?.type === 'end') {
-      if (entry.rounds !== rounds || entry.parts !== parts) throw Error('备份文件的记录数量不符');
+      if (entry.rounds !== rounds || entry.parts !== parts) throw backupError('record-count', '备份文件的记录数量不符');
       ended = true;
     } else {
-      if (!validPracticeBackupEntry(entry)) throw Error('备份文件中的成绩或判定记录有误');
+      if (!validPracticeBackupEntry(entry)) throw backupError('invalid-record', '备份文件中的成绩或判定记录有误');
       if (entry.type === 'round') rounds++;
       else parts++;
       yield entry;
     }
   }
-  if (!ended) throw Error('备份文件不完整');
+  if (!ended) throw backupError('incomplete', '备份文件不完整');
 }
 
 export async function importPracticeBackup(store, file) {
@@ -111,9 +115,7 @@ export async function importPracticeBackup(store, file) {
     await commit();
   } catch (cause) {
     if (added.rounds || added.parts) {
-      const error = Error('备份只导入了一部分，再次导入可继续', {cause});
-      error.code = 'partial-import';
-      throw error;
+      throw backupError('partial-import', '备份只导入了一部分，再次导入可继续', {cause});
     }
     throw cause;
   }
