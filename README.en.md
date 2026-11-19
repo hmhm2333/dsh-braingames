@@ -91,7 +91,7 @@ After installing, open a conversation and click the **game icon to the left of t
 Run these commands from the root of the public repository. The build was verified with Node.js `22.22.0` and npm `10.9.4`.
 
 ```bash
-npm ci --ignore-scripts --legacy-peer-deps
+npm ci --ignore-scripts
 npm run build
 npm pack --ignore-scripts
 ```
