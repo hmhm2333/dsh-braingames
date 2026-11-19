@@ -48,7 +48,7 @@
 
 ## 安装
 
-当前插件版本为 `1.1.0`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。
+当前插件版本为 `1.2.0`，最低支持 **DeepSeek Harness `0.2.2-rc.1`**（`>=0.2.2-rc.1`）。
 
 在 DSH「插件」中选择「添加插件」，安装源选择「npm 官方源」，填入以下包名。 [npm 包页面](https://www.npmjs.com/package/dsh-braingames)
 

@@ -50,7 +50,7 @@ In **Catch Claude-chan!**, the first group arrives together. Watch the ordinary 
 
 ## Install
 
-The current public release is `1.1.0`. It requires **DeepSeek Harness `0.2.2-rc.1` or later** (`>=0.2.2-rc.1`).
+The current public release is `1.2.0`. It requires **DeepSeek Harness `0.2.2-rc.1` or later** (`>=0.2.2-rc.1`).
 
 In DSH, open **Plugins → Add plugin**, select the npm registry, and enter the following package name. [npm package](https://www.npmjs.com/package/dsh-braingames)
 
